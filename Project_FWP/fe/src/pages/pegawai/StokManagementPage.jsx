@@ -180,9 +180,9 @@ export const StokManagementPage = () => {
       );
 
       const updatedBahan = {
-        bahan_baku_nama: currentBahan.bahan_baku_nama,
+        bahan_baku_nama: data.bahan_baku_nama, // Use the form input for name
         bahan_baku_jumlah: newJumlah,
-        bahan_baku_satuan: currentBahan.bahan_baku_satuan,
+        bahan_baku_satuan: currentBahan.bahan_baku_satuan, // Keep current values
         bahan_baku_harga_satuan: currentBahan.bahan_baku_harga_satuan,
         bahan_baku_harga: newJumlah * currentBahan.bahan_baku_harga_satuan,
       };
@@ -454,11 +454,7 @@ export const StokManagementPage = () => {
                       (mode === "update" && !getValues().bahan_baku_id)
                     }
                     size="md">
-                    {mode === "tambah"
-                      ? "Submit"
-                      : transactionType === "tambah"
-                      ? "Tambah Stok"
-                      : "Kurang Stok"}
+                    {mode === "tambah" ? "Submit" : "Update Stok"}
                   </Button>
                 </Group>
               </Stack>

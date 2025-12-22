@@ -558,7 +558,7 @@ const seedDatabase = async () => {
     },
     {
       detail_menu_id: 5,
-      detail_menu_nama_bahan: "Kemiri",
+      detail_menu_nama_bahan: "Biji Kemiri",
       detail_menu_jumlah: 0.015,
       detail_menu_satuan: "kg",
       detail_menu_harga: 720,
@@ -588,7 +588,7 @@ const seedDatabase = async () => {
     },
     {
       detail_menu_id: 8,
-      detail_menu_nama_bahan: "Kecap",
+      detail_menu_nama_bahan: "Kecap Manis",
       detail_menu_jumlah: 0.045,
       detail_menu_satuan: "liter",
       detail_menu_harga: 1665,
@@ -818,7 +818,7 @@ const seedDatabase = async () => {
     },
     {
       detail_menu_id: 31,
-      detail_menu_nama_bahan: "Kemiri",
+      detail_menu_nama_bahan: "Biji Kemiri",
       detail_menu_jumlah: 0.015,
       detail_menu_satuan: "kg",
       detail_menu_harga: 720,
@@ -948,7 +948,7 @@ const seedDatabase = async () => {
     },
     {
       detail_menu_id: 44,
-      detail_menu_nama_bahan: "Kemiri",
+      detail_menu_nama_bahan: "Biji Kemiri",
       detail_menu_jumlah: 0.015,
       detail_menu_satuan: "kg",
       detail_menu_harga: 720,

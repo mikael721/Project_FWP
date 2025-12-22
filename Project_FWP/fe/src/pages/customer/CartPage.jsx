@@ -15,11 +15,15 @@ import {
   Divider,
   Image,
   Modal,
+  Radio,
 } from "@mantine/core";
 import logo from "../../asset/logo.png";
 import qris from "../../asset/dummy_qris.jpg";
 import { useDispatch, useSelector } from "react-redux";
 import { clear } from "../../slice + storage/menuSlice";
+import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
+import { motion, AnimatePresence } from "framer-motion";
 
 const CartPage = () => {
   const navigate = useNavigate();
@@ -31,6 +35,11 @@ const CartPage = () => {
   const [loading, setLoading] = useState(false);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [pendingCheckoutData, setPendingCheckoutData] = useState(null);
+  const [locationMode, setLocationMode] = useState("manual");
+  const [mapPosition, setMapPosition] = useState({
+    lat: -7.2575,
+    lng: 112.7521,
+  });
   const [cartItems, setCartItems] = useState(() => {
     const items = menuTerpilih || [];
     return items.map((item, index) => ({
@@ -102,6 +111,34 @@ const CartPage = () => {
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  const LocationMarker = () => {
+    useMapEvents({
+      async click(e) {
+        setMapPosition(e.latlng);
+
+        try {
+          const res = await axios.get(
+            `https://nominatim.openstreetmap.org/reverse`,
+            {
+              params: {
+                lat: e.latlng.lat,
+                lon: e.latlng.lng,
+                format: "json",
+              },
+            }
+          );
+
+          if (res.data && res.data.display_name) {
+            handleFormChange("pesanan_lokasi", res.data.display_name);
+          }
+        } catch (error) {
+          console.error("Error fetching address:", error);
+        }
+      },
+    });
+    return <Marker position={[mapPosition.lat, mapPosition.lng]} />;
   };
 
   const handleQuantityChange = (tempId, delta) => {
@@ -671,29 +708,112 @@ const CartPage = () => {
                   </div>
 
                   <div>
-                    <TextInput
-                      label={
-                        <Text fw={700} size="md">
-                          Lokasi Pengiriman
-                        </Text>
-                      }
-                      placeholder="Masukkan lokasi pengiriman lengkap"
-                      value={form.pesanan_lokasi}
-                      onChange={(e) =>
-                        handleFormChange("pesanan_lokasi", e.target.value)
-                      }
-                      error={errors.pesanan_lokasi ? true : false}
-                      required
-                      styles={{
-                        input: {
-                          "&::placeholder": {
-                            color: "white",
-                            fontWeight: "700",
-                            opacity: "1",
-                          },
-                        },
-                      }}
-                    />
+                    <Text fw={700} size="md" mb="sm">
+                      Lokasi Pengiriman
+                    </Text>
+                    <Radio.Group
+                      value={locationMode}
+                      onChange={setLocationMode}
+                      mb="md">
+                      <Group>
+                        <Radio
+                          value="manual"
+                          label="Input Manual"
+                          styles={{
+                            label: { fontWeight: 600 },
+                          }}
+                        />
+                        <Radio
+                          value="map"
+                          label="Pilih dari Peta"
+                          styles={{
+                            label: { fontWeight: 600 },
+                          }}
+                        />
+                      </Group>
+                    </Radio.Group>
+
+                    <AnimatePresence mode="wait">
+                      {locationMode === "manual" ? (
+                        <motion.div
+                          key="manual"
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.3 }}>
+                          <TextInput
+                            placeholder="Masukkan lokasi pengiriman lengkap"
+                            value={form.pesanan_lokasi}
+                            onChange={(e) =>
+                              handleFormChange("pesanan_lokasi", e.target.value)
+                            }
+                            error={errors.pesanan_lokasi ? true : false}
+                            required
+                            styles={{
+                              input: {
+                                "&::placeholder": {
+                                  color: "white",
+                                  fontWeight: "700",
+                                  opacity: "1",
+                                },
+                              },
+                            }}
+                          />
+                        </motion.div>
+                      ) : (
+                        <motion.div
+                          key="map"
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.3 }}
+                          style={{ position: "relative", zIndex: 1 }}>
+                          <Stack gap="sm">
+                            <Box
+                              style={{
+                                height: 300,
+                                borderRadius: 8,
+                                overflow: "hidden",
+                                border: "2px solid #ddd",
+                                position: "relative",
+                              }}>
+                              <MapContainer
+                                center={[mapPosition.lat, mapPosition.lng]}
+                                zoom={13}
+                                style={{
+                                  width: "100%",
+                                  height: "100%",
+                                }}>
+                                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                                <LocationMarker />
+                              </MapContainer>
+                            </Box>
+                            <Text size="sm" c="">
+                              Klik pada peta untuk memilih lokasi
+                            </Text>
+                            {form.pesanan_lokasi && (
+                              <Box
+                                p="sm"
+                                style={{
+                                  backgroundColor: "#4C2E01",
+                                  borderRadius: 8,
+                                  borderLeft: "4px solid #10b981",
+                                }}>
+                                <Text size="xs" fw={600} mb={4}>
+                                  Lokasi Terpilih:
+                                </Text>
+                                <Text
+                                  size="sm"
+                                  style={{ wordBreak: "break-word" }}>
+                                  {form.pesanan_lokasi}
+                                </Text>
+                              </Box>
+                            )}
+                          </Stack>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
                     {errors.pesanan_lokasi && (
                       <Text size="sm" c="red" fw={700} mt={4}>
                         {errors.pesanan_lokasi}
@@ -850,7 +970,8 @@ const CartPage = () => {
             color: "white",
           },
         }}
-        centered>
+        centered
+        zIndex={1000}>
         <Stack gap="lg" align="center" className="mt-3">
           <Box ta="center">
             <Text fw={600} mb="md">

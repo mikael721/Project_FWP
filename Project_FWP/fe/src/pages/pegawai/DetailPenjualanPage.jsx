@@ -612,6 +612,12 @@ export const DetailPenjualanPage = () => {
   // === FINALIZE TRANSACTION ===
   const handleFinalize = async () => {
     try {
+      if (cartItems.length === 0) {
+        alert(
+          "Tidak ada item yang dipesan! Silahkan tambahkan item sebelum menyelesaikan transaksi."
+        );
+        return;
+      }
       // Validasi stok sebelum finalisasi
       const validationErrors = await validateAllStocks();
 
