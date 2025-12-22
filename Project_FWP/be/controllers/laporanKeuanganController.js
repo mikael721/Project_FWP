@@ -252,7 +252,6 @@ const getLaporanPembelian = async (req, res) => {
     });
   }
 };
-
 // Get Laporan Pesanan
 const getLaporanPesanan = async (req, res) => {
   try {
@@ -268,102 +267,116 @@ const getLaporanPesanan = async (req, res) => {
       menu_id,
     });
 
-    let wherePesanan = {};
-    let whereDetail = {};
+    // === BUILD QUERY UNTUK PESANAN ===
+    let pesananQuery = { deletedAt: null };
 
     // Filter by pesanan_tanggal_pengiriman (delivery date)
     if (tanggal_awal || tanggal_akhir) {
-      wherePesanan.pesanan_tanggal_pengiriman = {};
+      pesananQuery.pesanan_tanggal_pengiriman = {};
       if (tanggal_awal) {
-        const startTime = jam_awal ? ` ${jam_awal}:00` : " 00:00:00";
-        wherePesanan.pesanan_tanggal_pengiriman[Op.gte] = new Date(
-          tanggal_awal + startTime
+        const startTime = jam_awal ? `${jam_awal}:00` : "00:00:00";
+        pesananQuery.pesanan_tanggal_pengiriman.$gte = new Date(
+          `${tanggal_awal}T${startTime}`
         );
       }
       if (tanggal_akhir) {
-        const endTime = jam_akhir ? ` ${jam_akhir}:59` : " 23:59:59";
-        wherePesanan.pesanan_tanggal_pengiriman[Op.lte] = new Date(
-          tanggal_akhir + endTime
+        const endTime = jam_akhir ? `${jam_akhir}:59` : "23:59:59";
+        pesananQuery.pesanan_tanggal_pengiriman.$lte = new Date(
+          `${tanggal_akhir}T${endTime}`
         );
       }
     }
 
-    // FIX: Gunakan Op.like untuk MySQL, bukan Op.iLike
+    // Filter by nama (case-insensitive regex untuk MongoDB)
     if (
       nama &&
       String(nama).trim() !== "" &&
       String(nama) !== "null" &&
       String(nama) !== "undefined"
     ) {
-      wherePesanan.pesanan_nama = {
-        [Op.like]: `%${String(nama).trim()}%`, // Ubah dari Op.iLike ke Op.like
+      pesananQuery.pesanan_nama = {
+        $regex: String(nama).trim(),
+        $options: "i", // case-insensitive
       };
-      console.log("Applied nama filter:", wherePesanan.pesanan_nama);
+      console.log("Applied nama filter:", pesananQuery.pesanan_nama);
     }
 
-    // FIX: Properly check if menu_id exists and is not null/empty
+    console.log("Final pesananQuery:", pesananQuery);
+
+    // === FETCH PESANAN ===
+    const pesananList = await Pesanan.find(pesananQuery).sort({ createdAt: 1 });
+
+    // === BUILD QUERY UNTUK DETAIL ===
+    let detailQuery = { deletedAt: null };
+
     if (
       menu_id &&
       String(menu_id).trim() !== "" &&
       String(menu_id) !== "null" &&
       String(menu_id) !== "undefined"
     ) {
-      whereDetail.menu_id = menu_id;
+      detailQuery.menu_id = parseInt(menu_id);
     }
 
-    console.log("Final wherePesanan:", wherePesanan);
-    console.log("Final whereDetail:", whereDetail);
+    // === TRANSFORM DATA DENGAN MANUAL "JOIN" ===
+    const transformedData = await Promise.all(
+      pesananList.map(async (pes) => {
+        // Cari detail untuk pesanan ini
+        const details = await PesananDetail.find({
+          ...detailQuery,
+          pesanan_id: pes.pesanan_id,
+        });
 
-    const pesanan = await Pesanan.findAll({
-      where: Object.keys(wherePesanan).length > 0 ? wherePesanan : undefined,
-      include: [
-        {
-          model: PesananDetail,
-          as: "details",
-          where: Object.keys(whereDetail).length > 0 ? whereDetail : undefined,
-          include: [
-            {
-              model: Menu,
-              as: "menu",
-            },
-          ],
-        },
-      ],
-      order: [["createdAt", "ASC"]],
-    });
+        // Jika ada filter menu_id dan tidak ada detail yang cocok, skip pesanan ini
+        if (detailQuery.menu_id && details.length === 0) {
+          return null;
+        }
 
-    const transformedData = pesanan.map((pes) => {
-      const pesananItems = pes.details.map((detail) => ({
-        menu_id: detail.menu_id,
-        menu_nama: detail.menu?.menu_nama,
-        menu_harga: detail.menu?.menu_harga,
-        pesanan_detail_jumlah: detail.pesanan_detail_jumlah,
-        subtotal: (detail.menu?.menu_harga || 0) * detail.pesanan_detail_jumlah,
-      }));
+        // Ambil data menu untuk setiap detail
+        const pesananItems = await Promise.all(
+          details.map(async (detail) => {
+            const menu = await Menu.findOne({
+              menu_id: detail.menu_id,
+              deletedAt: null,
+            });
 
-      const totalSubtotal = pesananItems.reduce(
-        (sum, item) => sum + item.subtotal,
-        0
-      );
+            return {
+              menu_id: detail.menu_id,
+              menu_nama: menu?.menu_nama || null,
+              menu_harga: menu?.menu_harga || 0,
+              pesanan_detail_jumlah: detail.pesanan_detail_jumlah,
+              subtotal: (menu?.menu_harga || 0) * detail.pesanan_detail_jumlah,
+            };
+          })
+        );
 
-      return {
-        pesanan_id: pes.pesanan_id,
-        pesanan_nama: pes.pesanan_nama,
-        pesanan_email: pes.pesanan_email,
-        pesanan_lokasi: pes.pesanan_lokasi,
-        pesanan_status: pes.pesanan_status,
-        tanggal: pes.pesanan_tanggal,
-        tanggal_pengiriman: pes.pesanan_tanggal_pengiriman,
-        items: pesananItems,
-        total: totalSubtotal,
-      };
-    });
+        const totalSubtotal = pesananItems.reduce(
+          (sum, item) => sum + item.subtotal,
+          0
+        );
 
-    console.log("Transformed data count:", transformedData.length);
+        return {
+          pesanan_id: pes.pesanan_id,
+          pesanan_nama: pes.pesanan_nama,
+          pesanan_email: pes.pesanan_email,
+          pesanan_lokasi: pes.pesanan_lokasi,
+          pesanan_status: pes.pesanan_status,
+          tanggal: pes.pesanan_tanggal,
+          tanggal_pengiriman: pes.pesanan_tanggal_pengiriman,
+          items: pesananItems,
+          total: totalSubtotal,
+        };
+      })
+    );
+
+    // Filter out null values (pesanan yang tidak punya detail sesuai filter)
+    const filteredData = transformedData.filter((item) => item !== null);
+
+    console.log("Transformed data count:", filteredData.length);
 
     return res.status(200).json({
       message: "Berhasil mengambil laporan pesanan",
-      data: transformedData,
+      data: filteredData,
     });
   } catch (err) {
     console.error(err);
