@@ -1,5 +1,5 @@
-const BahanBaku = require("../mongodb/models/BahanBaku");
-const Pembelian = require("../mongodb/models/Pembelian");
+const BahanBaku = require("../models/bahanBakuModel");
+const Pembelian = require("../models/pembelianModel");
 const {
   addBahanBakuSchema,
   updateBahanBakuSchema,
@@ -9,7 +9,9 @@ const {
 // GET ALL
 exports.getAllBahanBaku = async (req, res) => {
   try {
-    const bahanBakuList = await BahanBaku.find({ deletedAt: null }).sort({ createdAt: -1 });
+    const bahanBakuList = await BahanBaku.find({ deletedAt: null }).sort({
+      createdAt: -1,
+    });
     return res.status(200).json(bahanBakuList);
   } catch (error) {
     return res.status(500).json({ error: error.message });
@@ -48,9 +50,10 @@ exports.addBahanBaku = async (req, res) => {
       bahan_baku_id: nextId,
       ...req.body,
     });
-    return res
-      .status(201)
-      .json({ message: "Bahan baku berhasil ditambahkan!", data: newBahanBaku });
+    return res.status(201).json({
+      message: "Bahan baku berhasil ditambahkan!",
+      data: newBahanBaku,
+    });
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }

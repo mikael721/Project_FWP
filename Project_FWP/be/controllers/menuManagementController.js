@@ -1,4 +1,4 @@
-const Menu = require("../mongodb/models/Menu");
+const Menu = require("../models/menuModels");
 const {
   addBahanBakuSchema,
   updateBahanBakuSchema,
@@ -42,7 +42,9 @@ exports.addMenu = async (req, res) => {
 // === GET ALL MENU ===
 exports.getMenu = async (req, res) => {
   try {
-    let getAllMenu = await Menu.find({ deletedAt: null }).sort({ createdAt: -1 });
+    let getAllMenu = await Menu.find({ deletedAt: null }).sort({
+      createdAt: -1,
+    });
     return res.status(200).json(getAllMenu);
   } catch (error) {
     return res.status(500).send({
@@ -132,7 +134,9 @@ exports.editMenuManagement = async (req, res) => {
 // === TEMPLATE ===
 exports.template = async (req, res) => {
   try {
-    let getAllMenu = await Menu.find({ deletedAt: null }).sort({ createdAt: -1 });
+    let getAllMenu = await Menu.find({ deletedAt: null }).sort({
+      createdAt: -1,
+    });
     return res.status(200).json(getAllMenu);
   } catch (error) {
     return res.status(500).send({

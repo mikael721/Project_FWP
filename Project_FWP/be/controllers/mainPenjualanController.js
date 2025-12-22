@@ -1,8 +1,8 @@
-const HeaderPenjualan = require("../mongodb/models/HeaderPenjualan");
-const Penjualan = require("../mongodb/models/Penjualan");
-const Menu = require("../mongodb/models/Menu");
-const DetailMenu = require("../mongodb/models/DetailMenu");
-const BahanBaku = require("../mongodb/models/BahanBaku");
+const HeaderPenjualan = require("../models/headerPenjualanModel");
+const Penjualan = require("../models/penjualanModel");
+const Menu = require("../models/menuModels");
+const DetailMenu = require("../models/detailMenu");
+const BahanBaku = require("../models/bahanBakuModel");
 const {
   headerPenjualanSchema,
   detailPenjualanSchema,
@@ -24,7 +24,9 @@ const createHeaderPenjualan = async (req, res) => {
     const pegawai_id = req.hasil?.pegawai_id || null;
 
     // Get next Header Penjualan ID
-    const lastHeader = await HeaderPenjualan.findOne().sort({ header_penjualan_id: -1 });
+    const lastHeader = await HeaderPenjualan.findOne().sort({
+      header_penjualan_id: -1,
+    });
     const nextId = (lastHeader?.header_penjualan_id || 0) + 1;
 
     const headerPayload = {

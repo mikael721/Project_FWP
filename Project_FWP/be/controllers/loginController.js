@@ -1,4 +1,4 @@
-const Pegawai = require("../mongodb/models/Pegawai");
+const Pegawai = require("../models/pegawai");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 

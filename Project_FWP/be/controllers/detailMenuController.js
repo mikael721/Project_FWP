@@ -1,5 +1,5 @@
-const DetailMenu = require("../mongodb/models/DetailMenu");
-const Menu = require("../mongodb/models/Menu");
+const DetailMenu = require("../models/detailMenu");
+const Menu = require("../models/menuModels");
 
 exports.createDetailMenu = async (req, res) => {
   try {
@@ -22,7 +22,9 @@ exports.createDetailMenu = async (req, res) => {
     }
 
     // Get next DetailMenu ID
-    const lastDetailMenu = await DetailMenu.findOne().sort({ detail_menu_id: -1 });
+    const lastDetailMenu = await DetailMenu.findOne().sort({
+      detail_menu_id: -1,
+    });
     const nextId = (lastDetailMenu?.detail_menu_id || 0) + 1;
 
     const detailMenu = await DetailMenu.create({

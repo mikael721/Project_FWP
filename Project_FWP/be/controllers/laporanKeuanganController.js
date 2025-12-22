@@ -1,14 +1,14 @@
 const {
   filterLaporanSchema,
 } = require("../validations/laporanKeuanganValidation");
-const HeaderPenjualan = require("../mongodb/models/HeaderPenjualan");
-const Penjualan = require("../mongodb/models/Penjualan");
-const Menu = require("../mongodb/models/Menu");
-const BahanBaku = require("../mongodb/models/BahanBaku");
-const Pembelian = require("../mongodb/models/Pembelian");
-const Pesanan = require("../mongodb/models/Pesanan");
-const PesananDetail = require("../mongodb/models/PesananDetail");
-const Pegawai = require("../mongodb/models/Pegawai");
+const HeaderPenjualan = require("../models/headerPenjualanModel");
+const Penjualan = require("../models/penjualanModel");
+const Menu = require("../models/menuModels");
+const BahanBaku = require("../models/bahanBakuModel");
+const Pembelian = require("../models/pembelianModel");
+const Pesanan = require("../models/Pesanan");
+const PesananDetail = require("../models/PesananDetail");
+const Pegawai = require("../models/pegawai");
 
 const getLaporanPenjualan = async (req, res) => {
   try {
@@ -58,9 +58,7 @@ const getLaporanPenjualan = async (req, res) => {
           if (tanggal_awal) {
             const startTime = jam_awal ? `${jam_awal}:00:00` : "00:00:00";
             const [year, month, day] = tanggal_awal.split("-");
-            const startDate = new Date(
-              `${year}-${month}-${day}T${startTime}`
-            );
+            const startDate = new Date(`${year}-${month}-${day}T${startTime}`);
             if (headerDate < startDate) passDateFilter = false;
           }
           if (tanggal_akhir) {

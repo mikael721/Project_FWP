@@ -1,8 +1,8 @@
 // controllers/pesananDetailController.js
-const PesananDetail = require("../mongodb/models/PesananDetail");
-const Pesanan = require("../mongodb/models/Pesanan");
-const Menu = require("../mongodb/models/Menu");
-const Pegawai = require("../mongodb/models/Pegawai");
+const PesananDetail = require("../models/PesananDetail");
+const Pesanan = require("../models/Pesanan");
+const Menu = require("../models/menuModels");
+const Pegawai = require("../models/pegawai");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 

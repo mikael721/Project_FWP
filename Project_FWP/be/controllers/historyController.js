@@ -1,6 +1,6 @@
-const Pesanan = require("../mongodb/models/Pesanan");
-const PesananDetail = require("../mongodb/models/PesananDetail");
-const Menu = require("../mongodb/models/Menu");
+const Pesanan = require("../models/Pesanan");
+const PesananDetail = require("../models/PesananDetail");
+const Menu = require("../models/menuModels");
 
 exports.getHistoryByEmail = async (req, res) => {
   try {
