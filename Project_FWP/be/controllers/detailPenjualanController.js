@@ -1,8 +1,9 @@
-const HeaderPenjualan = require("../models/headerPenjualanModel");
-const Penjualan = require("../models/penjualanModel");
-const Menu = require("../models/menuModels");
-const DetailMenu = require("../models/detailMenu");
-const BahanBaku = require("../models/bahanBakuModel");
+const HeaderPenjualan = require("../mongodb/models/HeaderPenjualan");
+const Penjualan = require("../mongodb/models/Penjualan");
+const Menu = require("../mongodb/models/Menu");
+const DetailMenu = require("../mongodb/models/DetailMenu");
+const BahanBaku = require("../mongodb/models/BahanBaku");
+const Pegawai = require("../mongodb/models/Pegawai");
 const {
   headerPenjualanSchema,
   updateHeaderPenjualanSchema,
@@ -24,8 +25,13 @@ const createHeaderPenjualan = async (req, res) => {
     // Extract pegawai_id dari token yang sudah di-decode oleh middleware
     const pegawai_id = req.hasil?.pegawai_id || null;
 
+    // Get next Header Penjualan ID
+    const lastHeader = await HeaderPenjualan.findOne().sort({ header_penjualan_id: -1 });
+    const nextId = (lastHeader?.header_penjualan_id || 0) + 1;
+
     // Add pegawai_id ke value sebelum create
     const headerPayload = {
+      header_penjualan_id: nextId,
       ...value,
       pegawai_id: pegawai_id,
     };
@@ -58,9 +64,10 @@ const createDetailPenjualan = async (req, res) => {
     }
 
     // Verify header penjualan exists
-    const headerExists = await HeaderPenjualan.findByPk(
-      value.header_penjualan_id
-    );
+    const headerExists = await HeaderPenjualan.findOne({
+      header_penjualan_id: value.header_penjualan_id,
+      deletedAt: null,
+    });
     if (!headerExists) {
       return res.status(404).json({
         message: "Header penjualan tidak ditemukan",
@@ -68,29 +75,38 @@ const createDetailPenjualan = async (req, res) => {
     }
 
     // Verify menu exists
-    const menuExists = await Menu.findByPk(value.menu_id);
+    const menuExists = await Menu.findOne({
+      menu_id: value.menu_id,
+      deletedAt: null,
+    });
     if (!menuExists) {
       return res.status(404).json({
         message: "Menu tidak ditemukan",
       });
     }
 
-    const penjualan = await Penjualan.create(value);
+    // Get next Penjualan ID
+    const lastPenjualan = await Penjualan.findOne().sort({ penjualan_id: -1 });
+    const nextId = (lastPenjualan?.penjualan_id || 0) + 1;
+
+    const penjualan = await Penjualan.create({
+      penjualan_id: nextId,
+      ...value,
+    });
 
     // Reduce bahan_baku stock based on menu recipe
     try {
-      const { sequelize } = require("../config/sequelize");
-      const detailMenus = await DetailMenu.findAll({
-        where: { menu_id: value.menu_id },
+      const detailMenus = await DetailMenu.find({
+        menu_id: value.menu_id,
+        deletedAt: null,
       });
 
       // For each ingredient in the menu recipe
       for (const detail of detailMenus) {
         // Find bahan_baku by name match
         const bahanBaku = await BahanBaku.findOne({
-          where: {
-            bahan_baku_nama: detail.detail_menu_nama_bahan,
-          },
+          bahan_baku_nama: detail.detail_menu_nama_bahan,
+          deletedAt: null,
         });
 
         if (bahanBaku) {
@@ -98,15 +114,15 @@ const createDetailPenjualan = async (req, res) => {
           const amountToReduce =
             detail.detail_menu_jumlah * value.penjualan_jumlah;
 
-          // Update bahan_baku stock using raw query
-          await sequelize.query(
-            `UPDATE bahan_baku SET bahan_baku_jumlah = bahan_baku_jumlah - :amountToReduce WHERE bahan_baku_id = :bahanBakuId`,
+          // Update bahan_baku stock
+          await BahanBaku.findOneAndUpdate(
+            { bahan_baku_id: bahanBaku.bahan_baku_id },
             {
-              replacements: {
-                amountToReduce: amountToReduce,
-                bahanBakuId: bahanBaku.bahan_baku_id,
-              },
-            }
+              bahan_baku_jumlah:
+                bahanBaku.bahan_baku_jumlah - amountToReduce,
+              updatedAt: new Date(),
+            },
+            { new: true }
           );
         }
       }
@@ -131,25 +147,41 @@ const createDetailPenjualan = async (req, res) => {
 // Get All Penjualan dengan Header
 const getAllPenjualan = async (req, res) => {
   try {
-    const penjualan = await HeaderPenjualan.findAll({
-      include: [
-        {
-          model: Penjualan,
-          as: "penjualans",
-          include: [
-            {
-              model: Menu,
-              as: "menu",
-            },
-          ],
-        },
-      ],
-      order: [["createdAt", "DESC"]],
+    const headers = await HeaderPenjualan.find({ deletedAt: null }).sort({
+      createdAt: -1,
     });
+
+    // Enhance dengan penjualan dan menu data
+    const enhancedData = await Promise.all(
+      headers.map(async (header) => {
+        const penjualanItems = await Penjualan.find({
+          header_penjualan_id: header.header_penjualan_id,
+          deletedAt: null,
+        });
+
+        const enhancedItems = await Promise.all(
+          penjualanItems.map(async (item) => {
+            const menu = await Menu.findOne({
+              menu_id: item.menu_id,
+              deletedAt: null,
+            });
+            return {
+              ...item.toObject(),
+              menu: menu || null,
+            };
+          })
+        );
+
+        return {
+          ...header.toObject(),
+          penjualans: enhancedItems,
+        };
+      })
+    );
 
     return res.status(200).json({
       message: "Berhasil mengambil data penjualan",
-      data: penjualan,
+      data: enhancedData,
     });
   } catch (err) {
     console.error(err);
@@ -165,26 +197,9 @@ const getPenjualanById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const Pegawai = require("../models/pegawai");
-
-    const penjualan = await HeaderPenjualan.findByPk(id, {
-      include: [
-        {
-          model: Penjualan,
-          as: "penjualans",
-          include: [
-            {
-              model: Menu,
-              as: "menu",
-            },
-          ],
-        },
-        {
-          model: Pegawai,
-          as: "pegawai",
-          attributes: ["pegawai_id", "pegawai_nama"],
-        },
-      ],
+    const penjualan = await HeaderPenjualan.findOne({
+      header_penjualan_id: parseInt(id),
+      deletedAt: null,
     });
 
     if (!penjualan) {
@@ -193,9 +208,38 @@ const getPenjualanById = async (req, res) => {
       });
     }
 
+    // Get related penjualan items
+    const penjualanItems = await Penjualan.find({
+      header_penjualan_id: parseInt(id),
+      deletedAt: null,
+    });
+
+    // Enhance dengan menu dan pegawai data
+    const enhancedItems = await Promise.all(
+      penjualanItems.map(async (item) => {
+        const menu = await Menu.findOne({
+          menu_id: item.menu_id,
+          deletedAt: null,
+        });
+        return {
+          ...item.toObject(),
+          menu: menu || null,
+        };
+      })
+    );
+
+    const pegawai = await Pegawai.findOne({
+      pegawai_id: penjualan.pegawai_id,
+      deletedAt: null,
+    });
+
     return res.status(200).json({
       message: "Berhasil mengambil data penjualan",
-      data: penjualan,
+      data: {
+        ...penjualan.toObject(),
+        penjualans: enhancedItems,
+        pegawai: pegawai || null,
+      },
     });
   } catch (err) {
     console.error(err);
@@ -219,15 +263,17 @@ const updateHeaderPenjualan = async (req, res) => {
       });
     }
 
-    const headerPenjualan = await HeaderPenjualan.findByPk(id);
+    const headerPenjualan = await HeaderPenjualan.findOneAndUpdate(
+      { header_penjualan_id: parseInt(id), deletedAt: null },
+      { ...value, updatedAt: new Date() },
+      { new: true }
+    );
 
     if (!headerPenjualan) {
       return res.status(404).json({
         message: "Header penjualan tidak ditemukan",
       });
     }
-
-    await headerPenjualan.update(value);
 
     return res.status(200).json({
       message: "Header penjualan berhasil diupdate",
@@ -242,20 +288,22 @@ const updateHeaderPenjualan = async (req, res) => {
   }
 };
 
-// Delete Detail Penjualan
+// Delete Detail Penjualan (Soft Delete)
 const deleteDetailPenjualan = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const penjualan = await Penjualan.findByPk(id);
+    const penjualan = await Penjualan.findOneAndUpdate(
+      { penjualan_id: parseInt(id), deletedAt: null },
+      { deletedAt: new Date() },
+      { new: true }
+    );
 
     if (!penjualan) {
       return res.status(404).json({
         message: "Detail penjualan tidak ditemukan",
       });
     }
-
-    await penjualan.destroy();
 
     return res.status(200).json({
       message: "Detail penjualan berhasil dihapus",
@@ -274,19 +322,28 @@ const getDetailByHeaderId = async (req, res) => {
   try {
     const { headerId } = req.params;
 
-    const details = await Penjualan.findAll({
-      where: { header_penjualan_id: headerId },
-      include: [
-        {
-          model: Menu,
-          as: "menu",
-        },
-      ],
+    const details = await Penjualan.find({
+      header_penjualan_id: parseInt(headerId),
+      deletedAt: null,
     });
+
+    // Enhance dengan menu data
+    const enhancedDetails = await Promise.all(
+      details.map(async (detail) => {
+        const menu = await Menu.findOne({
+          menu_id: detail.menu_id,
+          deletedAt: null,
+        });
+        return {
+          ...detail.toObject(),
+          menu: menu || null,
+        };
+      })
+    );
 
     return res.status(200).json({
       message: "Berhasil mengambil detail penjualan",
-      data: details,
+      data: enhancedDetails,
     });
   } catch (err) {
     console.error(err);

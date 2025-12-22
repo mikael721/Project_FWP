@@ -1,57 +1,36 @@
-// models/PesananDetail.js
-const { sequelize } = require("../config/sequelize");
-const { DataTypes } = require("sequelize");
+const mongoose = require("mongoose");
 
-const PesananDetail = sequelize.define(
-  "pesanan_detail",
+const pesananDetailSchema = new mongoose.Schema(
   {
     pesanan_detail_id: {
-      type: DataTypes.INTEGER,
-      autoIncrement: true,
-      primaryKey: true,
+      type: Number,
+      unique: true,
     },
     menu_id: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-      references: {
-        model: "menu",
-        key: "menu_id",
-      },
+      type: Number,
+      default: null,
     },
     pesanan_detail_jumlah: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
+      type: Number,
+      required: true,
     },
     subtotal: {
-      type: DataTypes.DECIMAL(10, 2),
-      allowNull: false,
+      type: Number,
+      required: true,
     },
     pesanan_id: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-      references: {
-        model: "pesanan",
-        key: "pesanan_id",
-      },
-    },
-    createdAt: {
-      type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW,
-    },
-    updatedAt: {
-      type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW,
+      type: Number,
+      default: null,
     },
     deletedAt: {
-      type: DataTypes.DATE,
-      allowNull: true,
+      type: Date,
+      default: null,
     },
   },
   {
-    tableName: "pesanan_detail",
     timestamps: true,
-    paranoid: true,
+    collection: "pesanan_detail",
   }
 );
 
-module.exports = PesananDetail;
+module.exports = mongoose.model("PesananDetail", pesananDetailSchema);

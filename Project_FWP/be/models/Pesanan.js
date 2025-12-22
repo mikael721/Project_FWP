@@ -1,98 +1,54 @@
-const { sequelize } = require("../config/sequelize");
-const { DataTypes } = require("sequelize");
-const PesananDetail = require("./PesananDetail");
-const Menu = require("./menuModels");
+const mongoose = require("mongoose");
 
-const Pesanan = sequelize.define(
-  "pesanan",
+const pesananSchema = new mongoose.Schema(
   {
     pesanan_id: {
-      type: DataTypes.INTEGER,
-      autoIncrement: true,
-      primaryKey: true,
+      type: Number,
+      unique: true,
     },
     pesanan_nama: {
-      type: DataTypes.STRING,
-      allowNull: false,
+      type: String,
+      required: true,
     },
     pesanan_lokasi: {
-      type: DataTypes.STRING,
-      allowNull: false,
+      type: String,
+      required: true,
     },
     pesan: {
-      type: DataTypes.STRING,
-      allowNull: false
+      type: String,
+      default: null,
     },
     nomer_telpon: {
-      type: DataTypes.STRING,
-      allowNull: false
+      type: String,
+      default: null,
     },
     pesanan_email: {
-      type: DataTypes.STRING,
-      allowNull: false,
-      validate: {
-        isEmail: true,
-      },
+      type: String,
+      required: true,
     },
     pesanan_status: {
-      type: DataTypes.ENUM("pending", "diproses", "terkirim"),
-      defaultValue: "pending",
-      allowNull: false,
-    },
-    pesan: {
-      type: DataTypes.TEXT,
-      allowNull: true,
-    },
-    nomer_telpon: {
-      type: DataTypes.STRING(200),
-      allowNull: true,
+      type: String,
+      enum: ["pending", "diproses", "terkirim"],
+      default: "pending",
+      required: true,
     },
     pesanan_tanggal: {
-      type: DataTypes.DATE,
-      allowNull: true,
+      type: Date,
+      default: null,
     },
     pesanan_tanggal_pengiriman: {
-      type: DataTypes.DATE,
-      allowNull: true,
-    },
-    createdAt: {
-      type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW,
-    },
-    updatedAt: {
-      type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW,
+      type: Date,
+      default: null,
     },
     deletedAt: {
-      type: DataTypes.DATE,
-      allowNull: true,
+      type: Date,
+      default: null,
     },
   },
   {
-    tableName: "pesanan",
     timestamps: true,
-    paranoid: true,
+    collection: "pesanan",
   }
 );
 
-Pesanan.hasMany(PesananDetail, {
-  foreignKey: "pesanan_id",
-  as: "details",
-});
-
-PesananDetail.belongsTo(Pesanan, {
-  foreignKey: "pesanan_id",
-  as: "pesanan",
-});
-
-Menu.hasMany(PesananDetail, {
-  foreignKey: "menu_id",
-  as: "pesanan_details",
-});
-
-PesananDetail.belongsTo(Menu, {
-  foreignKey: "menu_id",
-  as: "menu",
-});
-
-module.exports = Pesanan;
+module.exports = mongoose.model("Pesanan", pesananSchema);

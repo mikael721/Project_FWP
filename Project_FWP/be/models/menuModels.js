@@ -1,49 +1,38 @@
-const { sequelize } = require("../config/sequelize");
-const { DataTypes } = require("sequelize");
+const mongoose = require("mongoose");
 
-const Menu = sequelize.define(
-  "menu",
+const menuSchema = new mongoose.Schema(
   {
     menu_id: {
-      type: DataTypes.INTEGER,
-      autoIncrement: true,
-      primaryKey: true,
+      type: Number,
+      unique: true,
     },
     menu_nama: {
-      type: DataTypes.STRING(255),
-      allowNull: false,
+      type: String,
+      required: true,
+      maxlength: 255,
     },
     menu_harga: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      defaultValue: 0,
+      type: Number,
+      required: true,
+      default: 0,
     },
     menu_gambar: {
-      type: DataTypes.TEXT,
-      allowNull: false,
+      type: String,
+      required: true,
     },
     menu_status_aktif: {
-      type: DataTypes.TINYINT,
-      defaultValue: 1,
-    },
-    createdAt: {
-      type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW,
-    },
-    updatedAt: {
-      type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW,
+      type: Number,
+      default: 1,
     },
     deletedAt: {
-      type: DataTypes.DATE,
-      allowNull: true,
+      type: Date,
+      default: null,
     },
   },
   {
-    tableName: "menu",
     timestamps: true,
-    paranoid: true,
+    collection: "menu",
   }
 );
 
-module.exports = Menu;
+module.exports = mongoose.model("Menu", menuSchema);

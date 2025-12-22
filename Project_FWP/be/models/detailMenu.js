@@ -1,57 +1,40 @@
-// models/DetailMenu.js
-const { sequelize } = require("../config/sequelize");
-const { DataTypes } = require("sequelize");
+const mongoose = require("mongoose");
 
-const detailMenu = sequelize.define(
-  "detail_menu",
+const detailMenuSchema = new mongoose.Schema(
   {
     detail_menu_id: {
-      type: DataTypes.INTEGER,
-      autoIncrement: true,
-      primaryKey: true,
+      type: Number,
+      unique: true,
     },
     detail_menu_nama_bahan: {
-      type: DataTypes.STRING,
-      allowNull: false,
+      type: String,
+      required: true,
     },
     detail_menu_jumlah: {
-      type: DataTypes.FLOAT,
-      allowNull: false,
+      type: Number,
+      required: true,
     },
     detail_menu_satuan: {
-      type: DataTypes.STRING,
-      allowNull: false,
+      type: String,
+      required: true,
     },
     detail_menu_harga: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
+      type: Number,
+      required: true,
     },
     menu_id: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      references: {
-        model: "menu",
-        key: "menu_id",
-      },
-    },
-    createdAt: {
-      type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW,
-    },
-    updatedAt: {
-      type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW,
+      type: Number,
+      required: true,
     },
     deletedAt: {
-      type: DataTypes.DATE,
-      allowNull: true,
+      type: Date,
+      default: null,
     },
   },
   {
-    tableName: "detail_menu",
     timestamps: true,
-    paranoid: true,
+    collection: "detail_menu",
   }
 );
 
-module.exports = detailMenu;
+module.exports = mongoose.model("DetailMenu", detailMenuSchema);

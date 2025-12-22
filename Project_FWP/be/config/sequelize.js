@@ -1,27 +1,28 @@
-const { Sequelize } = require("sequelize");
+const mongoose = require("mongoose");
 require("dotenv").config();
 
-const sequelize = new Sequelize(
-  process.env.DB_NAME,
-  process.env.DB_USER,
-  process.env.DB_PASSWORD,
-  {
-    host: process.env.DB_HOST,
-    port: process.env.DB_PORT,
-    dialect: process.env.DB_DIALECT,
-    timezone: "+07:00",
-  }
-);
-
-async function testDB() {
+const connectMongoDB = async () => {
   try {
-    await sequelize.authenticate();
-    console.log("Database connected!");
+    const mongoURI =
+      process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/warungbulis";
+
+    await mongoose.connect(mongoURI);
+
+    console.log("MongoDB connected successfully!");
+    return mongoose.connection;
   } catch (error) {
-    console.error("Connection error:", error);
+    console.error("MongoDB connection error:", error);
+    process.exit(1);
   }
-}
+};
 
-testDB();
+const disconnectMongoDB = async () => {
+  try {
+    await mongoose.disconnect();
+    console.log("MongoDB disconnected successfully!");
+  } catch (error) {
+    console.error("MongoDB disconnection error:", error);
+  }
+};
 
-module.exports = { sequelize };
+module.exports = { connectMongoDB, disconnectMongoDB };

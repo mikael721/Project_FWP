@@ -1,111 +1,143 @@
-const MenuManagement = require("../models/menuModels");
+const Menu = require("../mongodb/models/Menu");
 const {
   addBahanBakuSchema,
   updateBahanBakuSchema,
   message,
 } = require("../validations/menuManagementValidation");
 
-// === UNTUK PEGAWAI (PAKAI TOKEN) ===
-exports.addMenu = async(req,res) => {
-    try {
-        // Ambil Semua Data Body
-        let {menu_nama,menu_harga,menu_gambar} = req.body;
-        if(!menu_nama || !menu_harga || !menu_gambar){
-            return res.status(200).send({
-                messages: 'Salah Satu Data Kosong !!!'
-            });
-        }
-        // Lakukan Insert
-        let insertMakanan = await MenuManagement.create({
-            menu_nama,menu_harga,menu_gambar
-        })
-
-        // Return
-        return res.status(200).send({
-            messages: 'Berhasil Menambahkan Menu',
-        });
-    } catch (error) {
-        return res.status(500).send({
-            messages: 'Internal Server Error',
-            error: error.messages
-        });
+// === ADD MENU ===
+exports.addMenu = async (req, res) => {
+  try {
+    let { menu_nama, menu_harga, menu_gambar } = req.body;
+    if (!menu_nama || !menu_harga || !menu_gambar) {
+      return res.status(400).send({
+        message: "Salah Satu Data Kosong !!!",
+      });
     }
-}
-exports.getMenu = async (req,res) => {
-    try {
-        
-        let getAllMenu = await MenuManagement.findAll();
-        return res.status(200).json(getAllMenu);
 
-    } catch (error) {
-        return res.status(500).send({
-            messages: 'Internal Server Error',
-            error: error.messages
-        });
-    }
-}
-exports.ubahStatus = async (req,res) => {
-    let { id } = req.params;
-    try {
-        let findMenu = await MenuManagement.findByPk(id);
-        if(findMenu.menu_status_aktif == 1){
-            findMenu.menu_status_aktif = 0
-        }
-        else{
-            findMenu.menu_status_aktif = 1
-        }
-        await findMenu.save();
-        return res.status(201).send({
-            message: 'Berhasil Mengupdate',
-            hasil: findMenu
-        })
-    } catch (error) {
-        return res.status(500).send({
-            messages: 'Internal Server Error',
-            error: error.message
-        });
-    }
-}
+    // Get next Menu ID
+    const lastMenu = await Menu.findOne().sort({ menu_id: -1 });
+    const nextId = (lastMenu?.menu_id || 0) + 1;
 
-// === Edit Menu ===
-exports.editMenuManagement = async(req,res) => {
-    let {menu_nama,menu_harga,menu_gambar} = req.body;
-    let {id} = req.params;
-    try {
-        let findMenu = await MenuManagement.findByPk(id);
-        
-        await findMenu.update({
-            menu_nama: menu_nama ?? findMenu.menu_nama,
-            menu_harga: menu_harga ?? findMenu.menu_harga,
-            menu_gambar: menu_gambar ?? findMenu.menu_gambar,
-        });
+    const insertMakanan = await Menu.create({
+      menu_id: nextId,
+      menu_nama,
+      menu_harga,
+      menu_gambar,
+      menu_status_aktif: 1,
+    });
 
-        return res.status(200).send({
-            message: "Menu berhasil diperbarui",
-            data: findMenu,
-            status: true
-        });
-
-    } catch (error) {
-        console.error("Error fetching pesanan:", error);
-        return res.status(500).json({
-        success: false,
-        message: "Failed to fetch pesanan",
-        error: error.message,
-        });
+    return res.status(201).send({
+      message: "Berhasil Menambahkan Menu",
+      data: insertMakanan,
+    });
+  } catch (error) {
+    return res.status(500).send({
+      message: "Internal Server Error",
+      error: error.message,
+    });
   }
-}
+};
+
+// === GET ALL MENU ===
+exports.getMenu = async (req, res) => {
+  try {
+    let getAllMenu = await Menu.find({ deletedAt: null }).sort({ createdAt: -1 });
+    return res.status(200).json(getAllMenu);
+  } catch (error) {
+    return res.status(500).send({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
+
+// === TOGGLE STATUS MENU ===
+exports.ubahStatus = async (req, res) => {
+  let { id } = req.params;
+  try {
+    let findMenu = await Menu.findOne({
+      menu_id: parseInt(id),
+      deletedAt: null,
+    });
+
+    if (!findMenu) {
+      return res.status(404).send({
+        message: "Menu tidak ditemukan",
+      });
+    }
+
+    findMenu.menu_status_aktif = findMenu.menu_status_aktif === 1 ? 0 : 1;
+
+    await Menu.findOneAndUpdate(
+      { menu_id: parseInt(id) },
+      { menu_status_aktif: findMenu.menu_status_aktif, updatedAt: new Date() },
+      { new: true }
+    );
+
+    return res.status(200).send({
+      message: "Berhasil Mengupdate",
+      data: findMenu,
+    });
+  } catch (error) {
+    return res.status(500).send({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
+
+// === EDIT MENU ===
+exports.editMenuManagement = async (req, res) => {
+  let { menu_nama, menu_harga, menu_gambar } = req.body;
+  let { id } = req.params;
+  try {
+    let findMenu = await Menu.findOne({
+      menu_id: parseInt(id),
+      deletedAt: null,
+    });
+
+    if (!findMenu) {
+      return res.status(404).send({
+        message: "Menu tidak ditemukan",
+      });
+    }
+
+    const updatedMenu = await Menu.findOneAndUpdate(
+      { menu_id: parseInt(id) },
+      {
+        menu_nama: menu_nama ?? findMenu.menu_nama,
+        menu_harga: menu_harga ?? findMenu.menu_harga,
+        menu_gambar: menu_gambar ?? findMenu.menu_gambar,
+        updatedAt: new Date(),
+      },
+      { new: true }
+    );
+
+    return res.status(200).send({
+      message: "Menu berhasil diperbarui",
+      data: updatedMenu,
+      status: true,
+    });
+  } catch (error) {
+    console.error("Error updating menu:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update menu",
+      error: error.message,
+    });
+  }
+};
 
 // === TEMPLATE ===
-exports.template = async (req,res) => {
-    try {
-        let getAllMenu = await MenuManagement.findAll();
-        return res.status(200).json(getAllMenu);
-
-    } catch (error) {
-        return res.status(500).send({
-            messages: 'Internal Server Error',
-            error: error.message
-        });
-    }
-}
+exports.template = async (req, res) => {
+  try {
+    let getAllMenu = await Menu.find({ deletedAt: null }).sort({ createdAt: -1 });
+    return res.status(200).json(getAllMenu);
+  } catch (error) {
+    return res.status(500).send({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};

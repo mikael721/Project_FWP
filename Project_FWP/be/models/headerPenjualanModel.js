@@ -1,62 +1,48 @@
-const { DataTypes } = require("sequelize");
-const { sequelize } = require("../config/sequelize");
+const mongoose = require("mongoose");
 
-const HeaderPenjualan = sequelize.define(
-  "header_penjualan",
+const headerPenjualanSchema = new mongoose.Schema(
   {
     header_penjualan_id: {
-      type: DataTypes.INTEGER,
-      primaryKey: true,
-      autoIncrement: true,
+      type: Number,
+      unique: true,
     },
     header_penjualan_tanggal: {
-      type: DataTypes.DATE,
-      allowNull: false,
+      type: Date,
+      required: true,
     },
     header_penjualan_jenis: {
-      type: DataTypes.ENUM("offline", "online"),
-      allowNull: false,
+      type: String,
+      enum: ["offline", "online"],
+      required: true,
     },
     header_penjualan_keterangan: {
-      type: DataTypes.STRING(255),
-      allowNull: false,
+      type: String,
+      required: true,
+      maxlength: 255,
     },
     header_penjualan_biaya_tambahan: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      defaultValue: 0,
+      type: Number,
+      required: true,
+      default: 0,
     },
     header_penjualan_uang_muka: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      defaultValue: 0,
+      type: Number,
+      required: true,
+      default: 0,
     },
     pegawai_id: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-      references: {
-        model: "pegawai",
-        key: "pegawai_id",
-      },
-    },
-    createdAt: {
-      type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW,
-    },
-    updatedAt: {
-      type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW,
+      type: Number,
+      default: null,
     },
     deletedAt: {
-      type: DataTypes.DATE,
-      defaultValue: null,
+      type: Date,
+      default: null,
     },
   },
   {
-    tableName: "header_penjualan",
     timestamps: true,
-    paranoid: true,
+    collection: "header_penjualan",
   }
 );
 
-module.exports = HeaderPenjualan;
+module.exports = mongoose.model("HeaderPenjualan", headerPenjualanSchema);

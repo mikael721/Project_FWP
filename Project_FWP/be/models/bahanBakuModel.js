@@ -1,52 +1,40 @@
-const { sequelize } = require("../config/sequelize");
-const { DataTypes } = require("sequelize");
+const mongoose = require("mongoose");
 
-const BahanBaku = sequelize.define(
-  "bahan_baku",
+const bahanBakuSchema = new mongoose.Schema(
   {
     bahan_baku_id: {
-      type: DataTypes.INTEGER,
-      autoIncrement: true,
-      primaryKey: true,
+      type: Number,
+      unique: true,
     },
     bahan_baku_nama: {
-      type: DataTypes.STRING,
-      allowNull: false,
+      type: String,
+      required: true,
     },
     bahan_baku_jumlah: {
-      type: DataTypes.FLOAT,
-      allowNull: false,
+      type: Number,
+      required: true,
     },
     bahan_baku_harga: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
+      type: Number,
+      required: true,
     },
     bahan_baku_satuan: {
-      type: DataTypes.STRING,
-      allowNull: false,
+      type: String,
+      required: true,
     },
     bahan_baku_harga_satuan: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-    },
-    createdAt: {
-      type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW,
-    },
-    updatedAt: {
-      type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW,
+      type: Number,
+      required: true,
     },
     deletedAt: {
-      type: DataTypes.DATE,
-      allowNull: true,
+      type: Date,
+      default: null,
     },
   },
   {
-    tableName: "bahan_baku",
     timestamps: true,
-    paranoid: true,
+    collection: "bahan_baku",
   }
 );
 
-module.exports = BahanBaku;
+module.exports = mongoose.model("BahanBaku", bahanBakuSchema);

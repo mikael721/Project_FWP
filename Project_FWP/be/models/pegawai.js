@@ -1,44 +1,33 @@
-const { sequelize } = require("../config/sequelize");
-const { DataTypes } = require("sequelize");
+const mongoose = require("mongoose");
 
-const pegawai = sequelize.define(
-  "pegawai",
+const pegawaiSchema = new mongoose.Schema(
   {
     pegawai_id: {
-      type: DataTypes.INTEGER,
-      autoIncrement: true,
-      primaryKey: true,
+      type: Number,
+      unique: true,
     },
     pegawai_nama: {
-      type: DataTypes.STRING,
-      allowNull: false,
+      type: String,
+      required: true,
     },
     pegawai_email: {
-      type: DataTypes.STRING,
-      allowNull: false,
+      type: String,
+      required: true,
+      unique: true,
     },
     pegawai_password: {
-      type: DataTypes.STRING,
-      allowNull: false,
-    },
-    createdAt: {
-      type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW,
-    },
-    updatedAt: {
-      type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW,
+      type: String,
+      required: true,
     },
     deletedAt: {
-      type: DataTypes.DATE,
-      allowNull: true,
+      type: Date,
+      default: null,
     },
   },
   {
-    tableName: "pegawai",
     timestamps: true,
-    paranoid: true,
+    collection: "pegawai",
   }
 );
 
-module.exports = pegawai;
+module.exports = mongoose.model("Pegawai", pegawaiSchema);

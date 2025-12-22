@@ -1,4 +1,4 @@
-const Pegawai = require("../models/pegawai");
+const Pegawai = require("../mongodb/models/Pegawai");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 
@@ -11,7 +11,8 @@ exports.doLogin = async (req, res) => {
 
     // Cek apakah pegawai dengan ID tsb ada di database
     const isUserAda = await Pegawai.findOne({
-      where: { pegawai_id },
+      pegawai_id: parseInt(pegawai_id),
+      deletedAt: null,
     });
 
     // Jika user tidak ditemukan

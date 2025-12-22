@@ -1,8 +1,8 @@
-const HeaderPenjualan = require("../models/headerPenjualanModel");
-const Penjualan = require("../models/penjualanModel");
-const Menu = require("../models/menuModels");
-const DetailMenu = require("../models/detailMenu");
-const BahanBaku = require("../models/bahanBakuModel");
+const HeaderPenjualan = require("../mongodb/models/HeaderPenjualan");
+const Penjualan = require("../mongodb/models/Penjualan");
+const Menu = require("../mongodb/models/Menu");
+const DetailMenu = require("../mongodb/models/DetailMenu");
+const BahanBaku = require("../mongodb/models/BahanBaku");
 const {
   headerPenjualanSchema,
   detailPenjualanSchema,
@@ -22,7 +22,13 @@ const createHeaderPenjualan = async (req, res) => {
 
     // Add pegawai_id dari token
     const pegawai_id = req.hasil?.pegawai_id || null;
+
+    // Get next Header Penjualan ID
+    const lastHeader = await HeaderPenjualan.findOne().sort({ header_penjualan_id: -1 });
+    const nextId = (lastHeader?.header_penjualan_id || 0) + 1;
+
     const headerPayload = {
+      header_penjualan_id: nextId,
       ...value,
       pegawai_id: pegawai_id,
     };
@@ -55,9 +61,10 @@ const createDetailPenjualan = async (req, res) => {
     }
 
     // Verify header penjualan exists
-    const headerExists = await HeaderPenjualan.findByPk(
-      value.header_penjualan_id
-    );
+    const headerExists = await HeaderPenjualan.findOne({
+      header_penjualan_id: value.header_penjualan_id,
+      deletedAt: null,
+    });
     if (!headerExists) {
       return res.status(404).json({
         message: "Header penjualan tidak ditemukan",
@@ -65,7 +72,10 @@ const createDetailPenjualan = async (req, res) => {
     }
 
     // Verify menu exists
-    const menuExists = await Menu.findByPk(value.menu_id);
+    const menuExists = await Menu.findOne({
+      menu_id: value.menu_id,
+      deletedAt: null,
+    });
     if (!menuExists) {
       return res.status(404).json({
         message: "Menu tidak ditemukan",
@@ -73,15 +83,17 @@ const createDetailPenjualan = async (req, res) => {
     }
 
     // Get menu ingredients to check and deduct stock
-    const ingredients = await DetailMenu.findAll({
-      where: { menu_id: value.menu_id },
+    const ingredients = await DetailMenu.find({
+      menu_id: value.menu_id,
+      deletedAt: null,
     });
 
     // Check if all ingredients have sufficient stock
     const stockChecks = await Promise.all(
       ingredients.map(async (ingredient) => {
         const bahanBaku = await BahanBaku.findOne({
-          where: { bahan_baku_nama: ingredient.detail_menu_nama_bahan },
+          bahan_baku_nama: ingredient.detail_menu_nama_bahan,
+          deletedAt: null,
         });
 
         const requiredQuantity =
@@ -133,8 +145,15 @@ const createDetailPenjualan = async (req, res) => {
       });
     }
 
+    // Get next Penjualan ID
+    const lastPenjualan = await Penjualan.findOne().sort({ penjualan_id: -1 });
+    const nextId = (lastPenjualan?.penjualan_id || 0) + 1;
+
     // Create penjualan record
-    const penjualan = await Penjualan.create(value);
+    const penjualan = await Penjualan.create({
+      penjualan_id: nextId,
+      ...value,
+    });
 
     // Deduct stock for each ingredient AFTER successful creation
     await Promise.all(
@@ -142,9 +161,14 @@ const createDetailPenjualan = async (req, res) => {
         if (check.bahanBaku) {
           const newStock =
             check.bahanBaku.bahan_baku_jumlah - check.requiredQuantity;
-          await check.bahanBaku.update({
-            bahan_baku_jumlah: newStock,
-          });
+          await BahanBaku.findOneAndUpdate(
+            { bahan_baku_id: check.bahanBaku.bahan_baku_id },
+            {
+              bahan_baku_jumlah: newStock,
+              updatedAt: new Date(),
+            },
+            { new: true }
+          );
         }
       })
     );
@@ -166,25 +190,31 @@ const createDetailPenjualan = async (req, res) => {
 // Get All Penjualan dengan Header
 const getAllPenjualan = async (req, res) => {
   try {
-    const penjualan = await HeaderPenjualan.findAll({
-      include: [
-        {
-          model: Penjualan,
-          as: "penjualans",
-          include: [
-            {
-              model: Menu,
-              as: "menu",
-            },
-          ],
-        },
-      ],
-      order: [["createdAt", "DESC"]],
+    const penjualan = await Penjualan.find({ deletedAt: null }).sort({
+      createdAt: -1,
     });
+
+    // Enhance dengan header dan menu data
+    const enhancedPenjualan = await Promise.all(
+      penjualan.map(async (item) => {
+        const header = await HeaderPenjualan.findOne({
+          header_penjualan_id: item.header_penjualan_id,
+        });
+        const menu = await Menu.findOne({
+          menu_id: item.menu_id,
+        });
+
+        return {
+          ...item.toObject(),
+          header: header || null,
+          menu: menu || null,
+        };
+      })
+    );
 
     return res.status(200).json({
       message: "Berhasil mengambil data penjualan",
-      data: penjualan,
+      data: enhancedPenjualan,
     });
   } catch (err) {
     console.error(err);
@@ -200,30 +230,42 @@ const getPenjualanById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const penjualan = await HeaderPenjualan.findByPk(id, {
-      include: [
-        {
-          model: Penjualan,
-          as: "penjualans",
-          include: [
-            {
-              model: Menu,
-              as: "menu",
-            },
-          ],
-        },
-      ],
+    const headerPenjualan = await HeaderPenjualan.findOne({
+      header_penjualan_id: parseInt(id),
+      deletedAt: null,
     });
 
-    if (!penjualan) {
+    if (!headerPenjualan) {
       return res.status(404).json({
         message: "Penjualan tidak ditemukan",
       });
     }
 
+    // Get related penjualan items
+    const penjualanItems = await Penjualan.find({
+      header_penjualan_id: parseInt(id),
+      deletedAt: null,
+    });
+
+    // Enhance dengan menu data
+    const enhancedItems = await Promise.all(
+      penjualanItems.map(async (item) => {
+        const menu = await Menu.findOne({
+          menu_id: item.menu_id,
+        });
+        return {
+          ...item.toObject(),
+          menu: menu || null,
+        };
+      })
+    );
+
     return res.status(200).json({
       message: "Berhasil mengambil data penjualan",
-      data: penjualan,
+      data: {
+        header: headerPenjualan,
+        items: enhancedItems,
+      },
     });
   } catch (err) {
     console.error(err);
@@ -247,15 +289,17 @@ const updateHeaderPenjualan = async (req, res) => {
       });
     }
 
-    const headerPenjualan = await HeaderPenjualan.findByPk(id);
+    const headerPenjualan = await HeaderPenjualan.findOneAndUpdate(
+      { header_penjualan_id: parseInt(id), deletedAt: null },
+      { ...value, updatedAt: new Date() },
+      { new: true }
+    );
 
     if (!headerPenjualan) {
       return res.status(404).json({
         message: "Header penjualan tidak ditemukan",
       });
     }
-
-    await headerPenjualan.update(value);
 
     return res.status(200).json({
       message: "Header penjualan berhasil diupdate",

@@ -1,63 +1,36 @@
-const { sequelize } = require("../config/sequelize");
-const { DataTypes } = require("sequelize");
-const BahanBaku = require("./bahanBakuModel");
+const mongoose = require("mongoose");
 
-const Pembelian = sequelize.define(
-  "pembelian",
+const pembelianSchema = new mongoose.Schema(
   {
     pembelian_id: {
-      type: DataTypes.INTEGER,
-      autoIncrement: true,
-      primaryKey: true,
+      type: Number,
+      unique: true,
     },
     bahan_baku_id: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      references: {
-        model: "bahan_baku",
-        key: "bahan_baku_id",
-      },
+      type: Number,
+      required: true,
     },
     pembelian_jumlah: {
-      type: DataTypes.FLOAT,
-      allowNull: false,
+      type: Number,
+      required: true,
     },
     pembelian_satuan: {
-      type: DataTypes.STRING,
-      allowNull: false,
+      type: String,
+      required: true,
     },
     pembelian_harga_satuan: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-    },
-    createdAt: {
-      type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW,
-    },
-    updatedAt: {
-      type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW,
+      type: Number,
+      required: true,
     },
     deletedAt: {
-      type: DataTypes.DATE,
-      allowNull: true,
+      type: Date,
+      default: null,
     },
   },
   {
-    tableName: "pembelian",
     timestamps: true,
-    paranoid: true,
+    collection: "pembelian",
   }
 );
 
-BahanBaku.hasMany(Pembelian, {
-  foreignKey: "bahan_baku_id",
-  as: "pembelians",
-});
-
-Pembelian.belongsTo(BahanBaku, {
-  foreignKey: "bahan_baku_id",
-  as: "bahan_baku",
-});
-
-module.exports = Pembelian;
+module.exports = mongoose.model("Pembelian", pembelianSchema);

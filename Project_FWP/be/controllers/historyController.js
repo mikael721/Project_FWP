@@ -1,28 +1,25 @@
-const Pesanan = require("../models/Pesanan");
-const PesananDetail = require("../models/PesananDetail");
-const menu = require("../models/menuModels");
+const Pesanan = require("../mongodb/models/Pesanan");
+const PesananDetail = require("../mongodb/models/PesananDetail");
+const Menu = require("../mongodb/models/Menu");
 
 exports.getHistoryByEmail = async (req, res) => {
   try {
     const { pesanan_email } = req.query;
 
     // Get all pesanan for the email
-    const pesananList = await Pesanan.findAll({
-      where: {
-        pesanan_email: pesanan_email,
-      },
-      order: [["pesanan_tanggal", "DESC"]],
-    });
+    const pesananList = await Pesanan.find({
+      pesanan_email: pesanan_email,
+      deletedAt: null,
+    }).sort({ pesanan_tanggal: -1 });
 
     const formattedData = [];
 
     // Loop through each pesanan
     for (const pesanan of pesananList) {
       // Get details for this pesanan
-      const pesananDetails = await PesananDetail.findAll({
-        where: {
-          pesanan_id: pesanan.pesanan_id,
-        },
+      const pesananDetails = await PesananDetail.find({
+        pesanan_id: pesanan.pesanan_id,
+        deletedAt: null,
       });
 
       const details = [];
@@ -30,11 +27,9 @@ exports.getHistoryByEmail = async (req, res) => {
       // Loop through each detail
       for (const detail of pesananDetails) {
         // Get menu info for this detail
-        const menuInfo = await menu.findOne({
-          where: {
-            menu_id: detail.menu_id,
-          },
-          attributes: ["menu_id", "menu_nama", "menu_harga"],
+        const menuInfo = await Menu.findOne({
+          menu_id: detail.menu_id,
+          deletedAt: null,
         });
 
         details.push({

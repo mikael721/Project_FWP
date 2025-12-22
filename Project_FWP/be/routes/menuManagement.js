@@ -4,14 +4,14 @@ const menuManagement = require("../controllers/menuManagementController");
 const { isAuthenticate } = require("../middleware/middleware");
 
 // untuk pegawai (pakai token)
-router.post("/", isAuthenticate  , menuManagement.addMenu);
-router.get("/getall", isAuthenticate  , menuManagement.getMenu);
-router.put("/status/:id", isAuthenticate  , menuManagement.ubahStatus);
+router.post("/", isAuthenticate, menuManagement.addMenu);
+router.get("/getall", isAuthenticate, menuManagement.getMenu);
+router.put("/status/:id", isAuthenticate, menuManagement.ubahStatus);
 
 // untuk customer (gk butuh token)
-router.get("/customer/getall" , menuManagement.getMenu);
+router.get("/customer/getall", menuManagement.getMenu);
 
 // edit menu management
-router.put("/edit/:id", menuManagement.editMenuManagement)
+router.put("/edit/:id", menuManagement.editMenuManagement);
 
 module.exports = router;

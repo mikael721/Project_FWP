@@ -1,15 +1,15 @@
-const BahanBaku = require("../models/bahanBakuModel");
-const Pembelian = require("../models/pembelianModel");
+const BahanBaku = require("../mongodb/models/BahanBaku");
+const Pembelian = require("../mongodb/models/Pembelian");
 const {
   addBahanBakuSchema,
   updateBahanBakuSchema,
   addPembelianSchema,
 } = require("../validations/bahanBakuValidation");
-//test
+
 // GET ALL
 exports.getAllBahanBaku = async (req, res) => {
   try {
-    const bahanBakuList = await BahanBaku.findAll();
+    const bahanBakuList = await BahanBaku.find({ deletedAt: null }).sort({ createdAt: -1 });
     return res.status(200).json(bahanBakuList);
   } catch (error) {
     return res.status(500).json({ error: error.message });
@@ -19,7 +19,10 @@ exports.getAllBahanBaku = async (req, res) => {
 // GET ONE
 exports.getBahanBakuById = async (req, res) => {
   try {
-    const bahanBaku = await BahanBaku.findByPk(req.params.id);
+    const bahanBaku = await BahanBaku.findOne({
+      bahan_baku_id: parseInt(req.params.id),
+      deletedAt: null,
+    });
     if (!bahanBaku) {
       return res.status(404).json({ message: "Bahan baku tidak ditemukan!" });
     }
@@ -37,10 +40,17 @@ exports.addBahanBaku = async (req, res) => {
       return res.status(400).json({ message: error.details[0].message });
     }
 
-    const newBahanBaku = await BahanBaku.create(req.body);
+    // Get next ID
+    const lastBahan = await BahanBaku.findOne().sort({ bahan_baku_id: -1 });
+    const nextId = (lastBahan?.bahan_baku_id || 0) + 1;
+
+    const newBahanBaku = await BahanBaku.create({
+      bahan_baku_id: nextId,
+      ...req.body,
+    });
     return res
       .status(201)
-      .json({ message: "Bahan baku berhasil ditambahkan!", newBahanBaku });
+      .json({ message: "Bahan baku berhasil ditambahkan!", data: newBahanBaku });
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
@@ -55,30 +65,36 @@ exports.updateBahanBaku = async (req, res) => {
     }
 
     const { id } = req.params;
-    const bahanBaku = await BahanBaku.findByPk(id);
+    const bahanBaku = await BahanBaku.findOneAndUpdate(
+      { bahan_baku_id: parseInt(id), deletedAt: null },
+      { ...req.body, updatedAt: new Date() },
+      { new: true }
+    );
 
     if (!bahanBaku) {
       return res.status(404).json({ message: "Bahan baku tidak ditemukan!" });
     }
 
-    await bahanBaku.update(req.body);
     return res
       .status(200)
-      .json({ message: "Bahan baku berhasil diperbarui!", bahanBaku });
+      .json({ message: "Bahan baku berhasil diperbarui!", data: bahanBaku });
   } catch (error) {
-    console.error("Update error:", error); // Add detailed logging
+    console.error("Update error:", error);
     return res.status(500).json({ error: error.message });
   }
 };
-// DELETE
+
+// DELETE (Soft Delete)
 exports.deleteBahanBaku = async (req, res) => {
   try {
     const { id } = req.params;
-    const deletedBahanBaku = await BahanBaku.destroy({
-      where: { bahan_baku_id: id },
-    });
+    const bahanBaku = await BahanBaku.findOneAndUpdate(
+      { bahan_baku_id: parseInt(id), deletedAt: null },
+      { deletedAt: new Date() },
+      { new: true }
+    );
 
-    if (deletedBahanBaku === 0) {
+    if (!bahanBaku) {
       return res.status(404).json({ message: "Bahan baku tidak ditemukan!" });
     }
 
@@ -87,6 +103,8 @@ exports.deleteBahanBaku = async (req, res) => {
     return res.status(500).json({ error: error.message });
   }
 };
+
+// ADD PEMBELIAN
 exports.addPembelian = async (req, res) => {
   try {
     const { error } = addPembelianSchema.validate(req.body);
@@ -101,13 +119,21 @@ exports.addPembelian = async (req, res) => {
       pembelian_harga_satuan,
     } = req.body;
 
-    const bahan = await BahanBaku.findByPk(bahan_baku_id);
+    const bahan = await BahanBaku.findOne({
+      bahan_baku_id: parseInt(bahan_baku_id),
+      deletedAt: null,
+    });
     if (!bahan) {
       return res.status(404).json({ message: "Bahan baku tidak ditemukan." });
     }
 
+    // Get next Pembelian ID
+    const lastPembelian = await Pembelian.findOne().sort({ pembelian_id: -1 });
+    const nextId = (lastPembelian?.pembelian_id || 0) + 1;
+
     const newPembelian = await Pembelian.create({
-      bahan_baku_id,
+      pembelian_id: nextId,
+      bahan_baku_id: parseInt(bahan_baku_id),
       pembelian_jumlah,
       pembelian_satuan,
       pembelian_harga_satuan,
@@ -115,7 +141,7 @@ exports.addPembelian = async (req, res) => {
 
     return res.status(201).json({
       message: "Pembelian berhasil ditambahkan!",
-      pembelian: newPembelian,
+      data: newPembelian,
     });
   } catch (err) {
     return res.status(500).json({ error: err.message });

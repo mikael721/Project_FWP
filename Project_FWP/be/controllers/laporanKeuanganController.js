@@ -1,15 +1,14 @@
-const { Op } = require("sequelize");
 const {
   filterLaporanSchema,
 } = require("../validations/laporanKeuanganValidation");
-const HeaderPenjualan = require("../models/headerPenjualanModel");
-const Penjualan = require("../models/penjualanModel");
-const Menu = require("../models/menuModels");
-const BahanBaku = require("../models/bahanBakuModel");
-const Pembelian = require("../models/pembelianModel");
-const Pesanan = require("../models/Pesanan");
-const PesananDetail = require("../models/PesananDetail");
-const Pegawai = require("../models/pegawai");
+const HeaderPenjualan = require("../mongodb/models/HeaderPenjualan");
+const Penjualan = require("../mongodb/models/Penjualan");
+const Menu = require("../mongodb/models/Menu");
+const BahanBaku = require("../mongodb/models/BahanBaku");
+const Pembelian = require("../mongodb/models/Pembelian");
+const Pesanan = require("../mongodb/models/Pesanan");
+const PesananDetail = require("../mongodb/models/PesananDetail");
+const Pegawai = require("../mongodb/models/Pegawai");
 
 const getLaporanPenjualan = async (req, res) => {
   try {
@@ -21,55 +20,92 @@ const getLaporanPenjualan = async (req, res) => {
     if (tanggal_awal || tanggal_akhir) {
       whereHeader.header_penjualan_tanggal = {};
       if (tanggal_awal) {
-        const startTime = jam_awal ? ` ${jam_awal}:00` : " 00:00:00";
-        whereHeader.header_penjualan_tanggal[Op.gte] = new Date(
-          tanggal_awal + startTime
+        const startTime = jam_awal ? `${jam_awal}:00:00` : "00:00:00";
+        const [year, month, day] = tanggal_awal.split("-");
+        whereHeader.header_penjualan_tanggal.$gte = new Date(
+          `${year}-${month}-${day}T${startTime}`
         );
       }
       if (tanggal_akhir) {
-        const endTime = jam_akhir ? ` ${jam_akhir}:59` : " 23:59:59";
-        whereHeader.header_penjualan_tanggal[Op.lte] = new Date(
-          tanggal_akhir + endTime
+        const endTime = jam_akhir ? `${jam_akhir}:59:59` : "23:59:59";
+        const [year, month, day] = tanggal_akhir.split("-");
+        whereHeader.header_penjualan_tanggal.$lte = new Date(
+          `${year}-${month}-${day}T${endTime}`
         );
       }
     }
 
-    const penjualan = await Penjualan.findAll({
-      include: [
-        {
-          model: HeaderPenjualan,
-          as: "header",
-          where: Object.keys(whereHeader).length > 0 ? whereHeader : undefined,
-          include: [
-            {
-              model: Pegawai,
-              as: "pegawai",
-            },
-          ],
-        },
-        {
-          model: Menu,
-          as: "menu",
-        },
-      ],
-      order: [["createdAt", "ASC"]],
-    });
+    // Add deletedAt filter
+    whereHeader.deletedAt = null;
+
+    const penjualan = await Penjualan.find({
+      deletedAt: null,
+    }).sort({ createdAt: 1 });
+
+    // Filter and enhance dengan header data
+    const filteredPenjualan = [];
+    for (const item of penjualan) {
+      const header = await HeaderPenjualan.findOne({
+        header_penjualan_id: item.header_penjualan_id,
+        deletedAt: null,
+      });
+
+      if (header) {
+        // Check date filter
+        let passDateFilter = true;
+        if (tanggal_awal || tanggal_akhir) {
+          const headerDate = new Date(header.header_penjualan_tanggal);
+          if (tanggal_awal) {
+            const startTime = jam_awal ? `${jam_awal}:00:00` : "00:00:00";
+            const [year, month, day] = tanggal_awal.split("-");
+            const startDate = new Date(
+              `${year}-${month}-${day}T${startTime}`
+            );
+            if (headerDate < startDate) passDateFilter = false;
+          }
+          if (tanggal_akhir) {
+            const endTime = jam_akhir ? `${jam_akhir}:59:59` : "23:59:59";
+            const [year, month, day] = tanggal_akhir.split("-");
+            const endDate = new Date(`${year}-${month}-${day}T${endTime}`);
+            if (headerDate > endDate) passDateFilter = false;
+          }
+        }
+
+        if (passDateFilter) {
+          const menu = await Menu.findOne({
+            menu_id: item.menu_id,
+            deletedAt: null,
+          });
+          const pegawai = await Pegawai.findOne({
+            pegawai_id: header.pegawai_id,
+            deletedAt: null,
+          });
+
+          filteredPenjualan.push({
+            ...item.toObject(),
+            header: header.toObject(),
+            menu: menu ? menu.toObject() : null,
+            pegawai: pegawai ? pegawai.toObject() : null,
+          });
+        }
+      }
+    }
 
     const groupedData = {};
 
-    penjualan.forEach((item) => {
-      const pesananNama = item.pesanan?.pesanan_nama || "Walk-in"; // Use direct relationship
+    filteredPenjualan.forEach((item) => {
+      const pesananNama = "Walk-in"; // Default for penjualan
       const key = `${item.header_penjualan_id}`;
 
       if (!groupedData[key]) {
         groupedData[key] = {
           header_penjualan_id: item.header_penjualan_id,
-          tanggal: item.header?.header_penjualan_tanggal,
-          jenis: item.header?.header_penjualan_jenis,
-          biaya_tambahan: item.header?.header_penjualan_biaya_tambahan || 0,
-          persentase_dp: item.header?.header_penjualan_uang_muka || 0,
-          pegawai_id: item.header?.pegawai_id,
-          pegawai_nama: item.header?.pegawai?.pegawai_nama,
+          tanggal: item.header.header_penjualan_tanggal,
+          jenis: item.header.header_penjualan_jenis,
+          biaya_tambahan: item.header.header_penjualan_biaya_tambahan || 0,
+          persentase_dp: item.header.header_penjualan_uang_muka || 0,
+          pegawai_id: item.header.pegawai_id,
+          pegawai_nama: item.pegawai?.pegawai_nama,
           pesanan_nama: [],
           items: [],
         };
@@ -155,47 +191,56 @@ const getLaporanPembelian = async (req, res) => {
     const { tanggal_awal, tanggal_akhir, jam_awal, jam_akhir, bahan_baku_id } =
       req.query;
 
-    let whereClause = {};
+    let whereClause = { deletedAt: null };
 
     if (tanggal_awal || tanggal_akhir) {
       whereClause.createdAt = {};
       if (tanggal_awal) {
-        const startTime = jam_awal ? ` ${jam_awal}:00` : " 00:00:00";
-        whereClause.createdAt[Op.gte] = new Date(tanggal_awal + startTime);
+        const startTime = jam_awal ? `${jam_awal}:00:00` : "00:00:00";
+        const [year, month, day] = tanggal_awal.split("-");
+        whereClause.createdAt.$gte = new Date(
+          `${year}-${month}-${day}T${startTime}`
+        );
       }
       if (tanggal_akhir) {
-        const endTime = jam_akhir ? ` ${jam_akhir}:59` : " 23:59:59";
-        whereClause.createdAt[Op.lte] = new Date(tanggal_akhir + endTime);
+        const endTime = jam_akhir ? `${jam_akhir}:59:59` : "23:59:59";
+        const [year, month, day] = tanggal_akhir.split("-");
+        whereClause.createdAt.$lte = new Date(
+          `${year}-${month}-${day}T${endTime}`
+        );
       }
     }
 
     // Only add bahan_baku_id filter if it's not null/undefined/empty
     if (bahan_baku_id && bahan_baku_id !== "null" && bahan_baku_id !== "") {
-      whereClause.bahan_baku_id = bahan_baku_id;
+      whereClause.bahan_baku_id = parseInt(bahan_baku_id);
     }
 
-    const pembelian = await Pembelian.findAll({
-      where: whereClause,
-      include: [
-        {
-          model: BahanBaku,
-          as: "bahan_baku",
-        },
-      ],
-      order: [["createdAt", "ASC"]],
+    const pembelian = await Pembelian.find(whereClause).sort({
+      createdAt: 1,
     });
 
-    const transformedData = pembelian.map((item) => ({
-      pembelian_id: item.pembelian_id,
-      tanggal: item.createdAt,
-      bahan_baku_id: item.bahan_baku_id,
-      bahan_baku_nama: item.bahan_baku?.bahan_baku_nama,
-      pembelian_jumlah: item.pembelian_jumlah,
-      pembelian_satuan: item.pembelian_satuan,
-      pembelian_harga_satuan: item.pembelian_harga_satuan,
-      subtotal: item.pembelian_jumlah * item.pembelian_harga_satuan,
-      bahan_baku_jumlah: item.bahan_baku?.bahan_baku_jumlah || 0,
-    }));
+    // Enhance dengan bahan_baku data
+    const transformedData = await Promise.all(
+      pembelian.map(async (item) => {
+        const bahanBaku = await BahanBaku.findOne({
+          bahan_baku_id: item.bahan_baku_id,
+          deletedAt: null,
+        });
+
+        return {
+          pembelian_id: item.pembelian_id,
+          tanggal: item.createdAt,
+          bahan_baku_id: item.bahan_baku_id,
+          bahan_baku_nama: bahanBaku?.bahan_baku_nama,
+          pembelian_jumlah: item.pembelian_jumlah,
+          pembelian_satuan: item.pembelian_satuan,
+          pembelian_harga_satuan: item.pembelian_harga_satuan,
+          subtotal: item.pembelian_jumlah * item.pembelian_harga_satuan,
+          bahan_baku_jumlah: bahanBaku?.bahan_baku_jumlah || 0,
+        };
+      })
+    );
 
     return res.status(200).json({
       message: "Berhasil mengambil laporan pembelian",

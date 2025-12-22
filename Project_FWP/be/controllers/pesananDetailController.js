@@ -1,10 +1,8 @@
 // controllers/pesananDetailController.js
-const PesananDetail = require("../models/PesananDetail");
-const Pesanan = require("../models/Pesanan");
-
-// Mengambil semua required modules dari versi HEAD (Versi Anda)
-const Menu = require("../models/menuModels");
-const Pegawai = require("../models/pegawai");
+const PesananDetail = require("../mongodb/models/PesananDetail");
+const Pesanan = require("../mongodb/models/Pesanan");
+const Menu = require("../mongodb/models/Menu");
+const Pegawai = require("../mongodb/models/Pegawai");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 
@@ -26,10 +24,17 @@ exports.createPesananDetail = async (req, res) => {
 
     const { menu_id, pesanan_detail_jumlah, pesanan_id, subtotal } = req.body;
 
+    // Get next PesananDetail ID
+    const lastPesananDetail = await PesananDetail.findOne().sort({
+      pesanan_detail_id: -1,
+    });
+    const nextId = (lastPesananDetail?.pesanan_detail_id || 0) + 1;
+
     const newPesananDetail = await PesananDetail.create({
-      menu_id,
+      pesanan_detail_id: nextId,
+      menu_id: parseInt(menu_id),
       pesanan_detail_jumlah,
-      pesanan_id,
+      pesanan_id: parseInt(pesanan_id),
       subtotal,
     });
 
@@ -47,6 +52,7 @@ exports.createPesananDetail = async (req, res) => {
     });
   }
 };
+
 // === CREATE PESANAN ===
 exports.createPesanan = async (req, res) => {
   try {
@@ -67,7 +73,12 @@ exports.createPesanan = async (req, res) => {
       pesanan_tanggal_pengiriman,
     } = req.body;
 
+    // Get next Pesanan ID
+    const lastPesanan = await Pesanan.findOne().sort({ pesanan_id: -1 });
+    const nextId = (lastPesanan?.pesanan_id || 0) + 1;
+
     const newPesanan = await Pesanan.create({
+      pesanan_id: nextId,
       pesanan_nama,
       pesanan_lokasi,
       pesanan_email,
@@ -91,41 +102,39 @@ exports.createPesanan = async (req, res) => {
     });
   }
 };
-// =================================== TAMBAHAN ==============================
 
-// === SHOW PESANAN DETAIL GROUPED BY PESANAN ID === // wes isa
+// === SHOW PESANAN DETAIL GROUPED BY PESANAN ID ===
 exports.showPesananDetailSpesifik = async (req, res) => {
   try {
-    const details = await PesananDetail.findAll({
-      include: [
-        {
-          model: require("../models/menuModels"), // Menu
-          as: "menu",
-          attributes: ["menu_id", "menu_nama", "menu_harga"],
-        },
-        {
-          model: require("../models/Pesanan"), // Pesanan
-          as: "pesanan",
-          attributes: [
-            "pesanan_id",
-            "pesanan_nama",
-            "pesanan_status",
-            "pesanan_email",
-            "pesan",
-            "nomer_telpon",
-            "pesanan_tanggal",
-            "pesanan_tanggal_pengiriman",
-          ], // ambil pesanan_status
-        },
-      ],
-      order: [["pesanan_id", "ASC"]],
+    const details = await PesananDetail.find({ deletedAt: null }).sort({
+      pesanan_id: 1,
     });
 
+    // Enhance dengan menu dan pesanan data
+    const enhancedDetails = await Promise.all(
+      details.map(async (detail) => {
+        const menu = await Menu.findOne({
+          menu_id: detail.menu_id,
+          deletedAt: null,
+        });
+        const pesanan = await Pesanan.findOne({
+          pesanan_id: detail.pesanan_id,
+          deletedAt: null,
+        });
+
+        return {
+          ...detail.toObject(),
+          menu: menu || null,
+          pesanan: pesanan || null,
+        };
+      })
+    );
+
     // Kelompokkan hasil berdasarkan pesanan_id
-    const grouped = details.reduce((acc, item) => {
+    const grouped = enhancedDetails.reduce((acc, item) => {
       const pid = item.pesanan_id;
       const nama = item.pesanan?.pesanan_nama || "Tidak diketahui";
-      const status = item.pesanan?.pesanan_status || "pending"; // ambil dari pesanan_status
+      const status = item.pesanan?.pesanan_status || "pending";
 
       if (!acc[pid]) {
         acc[pid] = {
@@ -147,36 +156,47 @@ exports.showPesananDetailSpesifik = async (req, res) => {
   }
 };
 
-// === UPDATE STATUS PESANAN DETAIL ===
+// === UPDATE STATUS PESANAN ===
 exports.updateStatusPesanan = async (req, res) => {
   const { id } = req.params;
-  const { pesan,userInfo } = req.body;
+  const { pesan, userInfo } = req.body;
   try {
-    // Cari pesanan berdasarkan primary key
-    const findPesanan = await Pesanan.findByPk(id);
+    // Cari pesanan berdasarkan ID
+    const findPesanan = await Pesanan.findOne({
+      pesanan_id: parseInt(id),
+      deletedAt: null,
+    });
+
     if (!findPesanan) {
       return res.status(404).json({ message: "Pesanan tidak ditemukan" });
     }
 
-    // Update status sesuai logika baru
-    // Model terbaru pakai `pesanan_status` (pending, diproses, terkirim)
+    // Update status sesuai logika
+    let newStatus = findPesanan.pesanan_status;
     if (findPesanan.pesanan_status === "pending") {
-      findPesanan.pesanan_status = "diproses";
+      newStatus = "diproses";
     } else if (findPesanan.pesanan_status === "diproses") {
-      findPesanan.pesanan_status = "terkirim";
+      newStatus = "terkirim";
     } else {
-      findPesanan.pesanan_status = "pending"; // fallback / reset
+      newStatus = "pending";
     }
 
-    findPesanan.pesan = `${userInfo}${pesan}`;
+    const pesan_text = `${userInfo}${pesan}`;
 
-    // Simpan perubahan ke database
-    await findPesanan.save();
+    const updatedPesanan = await Pesanan.findOneAndUpdate(
+      { pesanan_id: parseInt(id) },
+      {
+        pesanan_status: newStatus,
+        pesan: pesan_text,
+        updatedAt: new Date(),
+      },
+      { new: true }
+    );
 
     return res.status(200).json({
       success: true,
       message: "Status pesanan berhasil diperbarui",
-      result: findPesanan,
+      data: updatedPesanan,
     });
   } catch (error) {
     console.error("Error updating pesanan status:", error);
@@ -188,14 +208,18 @@ exports.updateStatusPesanan = async (req, res) => {
   }
 };
 
-// === Password vs Token // wes isa
+// === CHECK PASSWORD PEMESANAN ===
 exports.cekPasswordPemesanan = async (req, res) => {
-  const { password, pesan ,token } = req.body;
+  const { password, pesan, token } = req.body;
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const pegawai_id = decoded.pegawai_id;
 
-    const user = await Pegawai.findOne({ where: { pegawai_id } });
+    const user = await Pegawai.findOne({
+      pegawai_id: parseInt(pegawai_id),
+      deletedAt: null,
+    });
+
     if (!user) {
       return res.status(404).json({ message: "Pegawai tidak ditemukan" });
     }
@@ -226,19 +250,14 @@ exports.cekPasswordPemesanan = async (req, res) => {
   }
 };
 
-// =================================== TAMBAHAN (DARI VERSI LAMA) ==============================
 // === GET PESANAN BY ID ===
 exports.getPesananById = async (req, res) => {
   try {
     const { pesanan_id } = req.params;
 
-    const pesanan = await Pesanan.findByPk(pesanan_id, {
-      include: [
-        {
-          model: PesananDetail,
-          as: "pesananDetails",
-        },
-      ],
+    const pesanan = await Pesanan.findOne({
+      pesanan_id: parseInt(pesanan_id),
+      deletedAt: null,
     });
 
     if (!pesanan) {
@@ -248,9 +267,18 @@ exports.getPesananById = async (req, res) => {
       });
     }
 
+    // Get related pesanan details
+    const pesananDetails = await PesananDetail.find({
+      pesanan_id: parseInt(pesanan_id),
+      deletedAt: null,
+    });
+
     return res.status(200).json({
       success: true,
-      data: pesanan,
+      data: {
+        pesanan: pesanan,
+        details: pesananDetails,
+      },
     });
   } catch (error) {
     console.error("Error fetching pesanan:", error);
@@ -276,7 +304,11 @@ exports.updatePesananStatus = async (req, res) => {
       });
     }
 
-    const pesanan = await Pesanan.findByPk(pesanan_id);
+    const pesanan = await Pesanan.findOneAndUpdate(
+      { pesanan_id: parseInt(pesanan_id), deletedAt: null },
+      { pesanan_status, updatedAt: new Date() },
+      { new: true }
+    );
 
     if (!pesanan) {
       return res.status(404).json({
@@ -284,8 +316,6 @@ exports.updatePesananStatus = async (req, res) => {
         message: "Pesanan not found",
       });
     }
-
-    await pesanan.update({ pesanan_status });
 
     return res.status(200).json({
       success: true,
@@ -302,24 +332,30 @@ exports.updatePesananStatus = async (req, res) => {
   }
 };
 
-// === DAPATKAN MENU YANG ADA DI DETAIL MENU BERDASARKAN ID ===
+// === GET PESANAN DETAIL BY PESANAN ID ===
 exports.getPesananDetailById = async (req, res) => {
-  let { id } = req.params; // id dari pesanan id !!!
+  let { id } = req.params;
   try {
-    // ambil semnua pesanan id = ... gtampilkan hanya menu yang dipesan (pakai relasi)
-    let getMenuById = await PesananDetail.findAll({
-      where: {
-        pesanan_id: id,
-      },
-      include: [
-        {
-          model: Menu,
-          as: "menu",
-        },
-      ],
+    const getMenuById = await PesananDetail.find({
+      pesanan_id: parseInt(id),
+      deletedAt: null,
     });
 
-    return res.status(200).json(getMenuById);
+    // Enhance dengan menu data
+    const enhancedData = await Promise.all(
+      getMenuById.map(async (detail) => {
+        const menu = await Menu.findOne({
+          menu_id: detail.menu_id,
+          deletedAt: null,
+        });
+        return {
+          ...detail.toObject(),
+          menu: menu || null,
+        };
+      })
+    );
+
+    return res.status(200).json(enhancedData);
   } catch (error) {
     console.error("Error fetching pesanan:", error);
     return res.status(500).json({
