@@ -3,12 +3,10 @@ require("dotenv").config();
 
 const connectMongoDB = async () => {
   try {
-    const mongoURI = process.env.MONGO_URL; // Fallback URL
+    const mongoURI =
+      process.env.MONGO_URI || "mongodb://127.0.0.1:27017/warungbulis";
 
-    await mongoose.connect(mongoURI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
+    await mongoose.connect(mongoURI);
 
     console.log("MongoDB connected successfully!");
     return mongoose.connection;
