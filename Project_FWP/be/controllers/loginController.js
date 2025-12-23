@@ -36,6 +36,7 @@ exports.doLogin = async (req, res) => {
     const payload = {
       pegawai_id: isUserAda.pegawai_id,
       pegawai_nama: isUserAda.pegawai_nama,
+      pegawai_role: isUserAda.pegawai_role,
     };
 
     const jwtPass = process.env.JWT_SECRET;
