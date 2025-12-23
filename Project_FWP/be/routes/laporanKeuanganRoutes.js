@@ -27,7 +27,4 @@ router.get(
   laporanKeuanganController.getLaporanPesanan
 );
 
-// Get All Laporan
-router.get("/all", isAuthenticate, laporanKeuanganController.getAllLaporan);
-
 module.exports = router;

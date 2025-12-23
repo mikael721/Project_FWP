@@ -6,7 +6,6 @@ import {
   Stack,
   Title,
   Paper,
-  Table,
   Radio,
   Group,
   TextInput,
@@ -18,6 +17,9 @@ import {
 } from "@mantine/core";
 import { useSelector } from "react-redux";
 import axios from "axios";
+import { DataGrid } from "@mui/x-data-grid";
+import { ThemeProvider, createTheme } from "@mui/material/styles";
+import * as XLSX from "xlsx";
 
 export const LaporanKeuanganPage = () => {
   const API_BASE = import.meta.env.VITE_API_BASE;
@@ -27,13 +29,11 @@ export const LaporanKeuanganPage = () => {
   const [dataPembelian, setDataPembelian] = useState([]);
   const [dataPesanan, setDataPesanan] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [tanggalStart, setTanggalStart] = useState("");
-  const [jamStart, setJamStart] = useState("00:00");
-  const [tanggalEnd, setTanggalEnd] = useState("");
-  const [jamEnd, setJamEnd] = useState("23:59");
-  const [filterNama, setFilterNama] = useState("");
-  const [filterMenuId, setFilterMenuId] = useState("");
-  const [filterBahanId, setFilterBahanId] = useState("");
+
+  // Track filtered rows
+  const [filteredPenjualanRows, setFilteredPenjualanRows] = useState([]);
+  const [filteredPembelianRows, setFilteredPembelianRows] = useState([]);
+  const [filteredPesananRows, setFilteredPesananRows] = useState([]);
 
   const navigate = useNavigate();
   const userToken = useSelector((state) => state.user.userToken);
@@ -43,14 +43,12 @@ export const LaporanKeuanganPage = () => {
     cekSudahLogin();
   }, []);
 
-  // === Cek login dan ambil data menu ===
   const cekSudahLogin = () => {
     if (!userToken) {
       navigate("/pegawai");
     }
   };
 
-  // Fetch initial data
   useEffect(() => {
     fetchAllData();
   }, []);
@@ -66,18 +64,10 @@ export const LaporanKeuanganPage = () => {
     }
   };
 
-  // Fetch data penjualan fix
-  const fetchPenjualan = async (filters = {}) => {
+  const fetchPenjualan = async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
-
-      if (filters.tanggalStart)
-        params.append("tanggal_awal", filters.tanggalStart);
-      if (filters.tanggalEnd)
-        params.append("tanggal_akhir", filters.tanggalEnd);
-      if (filters.jamStart) params.append("jam_awal", filters.jamStart);
-      if (filters.jamEnd) params.append("jam_akhir", filters.jamEnd);
 
       const response = await axios.get(
         `${API_BASE}/api/laporan_keuangan/penjualan`,
@@ -95,19 +85,10 @@ export const LaporanKeuanganPage = () => {
     }
   };
 
-  // Fetch data pembelian
-  const fetchPembelian = async (filters = {}) => {
+  const fetchPembelian = async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
-
-      if (filters.tanggalStart)
-        params.append("tanggal_awal", filters.tanggalStart);
-      if (filters.tanggalEnd)
-        params.append("tanggal_akhir", filters.tanggalEnd);
-      if (filters.jamStart) params.append("jam_awal", filters.jamStart);
-      if (filters.jamEnd) params.append("jam_akhir", filters.jamEnd);
-      if (filters.bahanId) params.append("bahan_baku_id", filters.bahanId);
 
       const response = await axios.get(
         `${API_BASE}/api/laporan_keuangan/pembelian`,
@@ -125,22 +106,10 @@ export const LaporanKeuanganPage = () => {
     }
   };
 
-  // Fetch data pesanan
-  const fetchPesanan = async (filters = {}) => {
+  const fetchPesanan = async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
-
-      if (filters.tanggalStart)
-        params.append("tanggal_awal", filters.tanggalStart);
-      if (filters.tanggalEnd)
-        params.append("tanggal_akhir", filters.tanggalEnd);
-      if (filters.jamStart) params.append("jam_awal", filters.jamStart);
-      if (filters.jamEnd) params.append("jam_akhir", filters.jamEnd);
-      if (filters.nama && filters.nama.trim())
-        params.append("nama", filters.nama.trim());
-      if (filters.menuId && filters.menuId.trim())
-        params.append("menu_id", filters.menuId.trim());
 
       const response = await axios.get(
         `${API_BASE}/api/laporan_keuangan/pesanan`,
@@ -155,30 +124,6 @@ export const LaporanKeuanganPage = () => {
       setDataPesanan([]);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const onApplyFilter = () => {
-    const filters = {
-      tanggalStart: tanggalStart || undefined,
-      tanggalEnd: tanggalEnd || undefined,
-      jamStart: jamStart || undefined,
-      jamEnd: jamEnd || undefined,
-      nama: filterNama || undefined,
-      menuId: filterMenuId || undefined,
-      bahanId: filterBahanId || undefined,
-    };
-
-    if (jenisLaporan === "penjualan") {
-      fetchPenjualan(filters);
-    } else if (jenisLaporan === "pembelian") {
-      fetchPembelian(filters);
-    } else if (jenisLaporan === "pesanan") {
-      fetchPesanan(filters);
-    } else if (jenisLaporan === "all") {
-      fetchPenjualan(filters);
-      fetchPembelian(filters);
-      fetchPesanan(filters);
     }
   };
 
@@ -221,18 +166,456 @@ export const LaporanKeuanganPage = () => {
     return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
   };
 
-  // Cell styles for Pembelian table
-  const headerCellStyle = {
-    color: "white",
-    backgroundColor: "#8B7355",
-    fontWeight: "bold",
-    padding: "10px",
-    textAlign: "center",
+  // Get current datetime for filename
+  const getCurrentDateTimeForFilename = () => {
+    const now = new Date();
+    const day = String(now.getDate()).padStart(2, "0");
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const year = now.getFullYear();
+    const hours = String(now.getHours()).padStart(2, "0");
+    const minutes = String(now.getMinutes()).padStart(2, "0");
+    const seconds = String(now.getSeconds()).padStart(2, "0");
+    return `${day}${month}${year}_${hours}${minutes}${seconds}`;
   };
 
-  const cellStyle = {
-    padding: "8px",
-    textAlign: "left",
+  // Prepare data for Pembelian DataGrid
+  const pembelianRows = dataPembelian.map((item, index) => ({
+    id: index,
+    pembelian_id: item.pembelian_id,
+    tanggal: formatDate(item.tanggal),
+    bahan_baku_id: item.bahan_baku_id,
+    bahan_baku_nama: item.bahan_baku_nama,
+    pembelian_jumlah: item.pembelian_jumlah,
+    pembelian_satuan: item.pembelian_satuan,
+    pembelian_harga_satuan: item.pembelian_harga_satuan || 0,
+    subtotal: item.subtotal || 0,
+    bahan_baku_jumlah: item.bahan_baku_jumlah,
+  }));
+
+  const pembelianColumns = [
+    { field: "pembelian_id", headerName: "ID", width: 80 },
+    { field: "tanggal", headerName: "Tanggal", width: 120 },
+    { field: "bahan_baku_id", headerName: "Bahan Baku ID", width: 120 },
+    { field: "bahan_baku_nama", headerName: "Bahan Baku Nama", width: 150 },
+    { field: "pembelian_jumlah", headerName: "Jumlah Beli", width: 120 },
+    { field: "pembelian_satuan", headerName: "Satuan", width: 100 },
+    {
+      field: "pembelian_harga_satuan",
+      headerName: "Harga/Satuan",
+      width: 130,
+      renderCell: (params) => `Rp ${params.value.toLocaleString("id-ID")}`,
+    },
+    {
+      field: "subtotal",
+      headerName: "Subtotal",
+      width: 130,
+      renderCell: (params) => `Rp ${params.value.toLocaleString("id-ID")}`,
+    },
+    {
+      field: "bahan_baku_jumlah",
+      headerName: "Sisa Stok",
+      width: 130,
+      renderCell: (params) => {
+        const value = params.value;
+        const satuan = params.row.pembelian_satuan;
+        const color = value === 0 ? "#d32f2f" : "#2e7d32";
+        return (
+          <span style={{ fontWeight: "bold", color }}>
+            {value !== undefined ? `${value} ${satuan}` : "-"}
+          </span>
+        );
+      },
+    },
+  ];
+
+  // Prepare data for Penjualan and Pesanan detail rows
+  const getPenjualanDetailRows = () => {
+    const rows = [];
+    dataPenjualan.forEach((penjualan, penjualanIndex) => {
+      rows.push({
+        id: `penjualan-header-${penjualanIndex}`,
+        type: "header",
+        pegawai_id: penjualan.pegawai_id,
+        header_penjualan_id: penjualan.header_penjualan_id,
+        tanggal: formatDateTime(penjualan.tanggal),
+        jenis: penjualan.jenis,
+        totalSubtotal: penjualan.totalSubtotal,
+        totalBiayaTambahan: penjualan.totalBiayaTambahan,
+        persentaseDP: penjualan.persentaseDP,
+        totalDP: penjualan.totalDP,
+        grandTotal: penjualan.grandTotal,
+        sisaPembayaran: penjualan.sisaPembayaran,
+      });
+
+      penjualan.items?.forEach((item, itemIndex) => {
+        rows.push({
+          id: `penjualan-item-${penjualanIndex}-${itemIndex}`,
+          type: "item",
+          menu_id: item.menu_id,
+          menu_nama: item.menu_nama,
+          menu_harga: item.menu_harga,
+          penjualan_jumlah: item.penjualan_jumlah,
+          subtotal: item.subtotal,
+        });
+      });
+    });
+    return rows;
+  };
+
+  const getPesananDetailRows = () => {
+    const rows = [];
+    dataPesanan.forEach((pesanan, pesananIndex) => {
+      rows.push({
+        id: `pesanan-header-${pesananIndex}`,
+        type: "header",
+        pesanan_nama: pesanan.pesanan_nama,
+        pesanan_status: pesanan.pesanan_status,
+        pesanan_id: pesanan.pesanan_id,
+        tanggal: formatDateTime(pesanan.tanggal),
+        tanggal_pengiriman: formatDateTime(pesanan.tanggal_pengiriman),
+        total: pesanan.total,
+      });
+
+      pesanan.items?.forEach((item, itemIndex) => {
+        rows.push({
+          id: `pesanan-item-${pesananIndex}-${itemIndex}`,
+          type: "item",
+          menu_id: item.menu_id,
+          menu_nama: item.menu_nama,
+          menu_harga: item.menu_harga,
+          pesanan_detail_jumlah: item.pesanan_detail_jumlah,
+          subtotal: item.subtotal,
+        });
+      });
+    });
+    return rows;
+  };
+
+  const penjualanRows = getPenjualanDetailRows();
+  const pesananRows = getPesananDetailRows();
+
+  const penjualanColumns = [
+    {
+      field: "type",
+      headerName: "Type",
+      width: 80,
+      renderCell: (params) => (params.value === "header" ? "Header" : "Item"),
+    },
+    {
+      field: "header_penjualan_id",
+      headerName: "ID Penjualan",
+      width: 120,
+      renderCell: (params) =>
+        params.row.type === "header" ? params.value : "-",
+    },
+    {
+      field: "pegawai_id",
+      headerName: "Pegawai ID",
+      width: 110,
+      renderCell: (params) =>
+        params.row.type === "header" ? params.value : "-",
+    },
+    {
+      field: "tanggal",
+      headerName: "Tanggal",
+      width: 180,
+      renderCell: (params) =>
+        params.row.type === "header" ? params.value : "-",
+    },
+    {
+      field: "jenis",
+      headerName: "Jenis Transaksi",
+      width: 130,
+      renderCell: (params) =>
+        params.row.type === "header" ? params.value || "-" : "-",
+    },
+    {
+      field: "menu_id",
+      headerName: "Menu ID",
+      width: 100,
+      renderCell: (params) => (params.row.type === "item" ? params.value : "-"),
+    },
+    {
+      field: "menu_nama",
+      headerName: "Menu",
+      width: 150,
+      renderCell: (params) => (params.row.type === "item" ? params.value : "-"),
+    },
+    {
+      field: "menu_harga",
+      headerName: "Harga",
+      width: 130,
+      renderCell: (params) =>
+        params.row.type === "item"
+          ? `Rp ${(params.value || 0).toLocaleString("id-ID")}`
+          : "-",
+    },
+    {
+      field: "penjualan_jumlah",
+      headerName: "Jumlah",
+      width: 100,
+      renderCell: (params) => (params.row.type === "item" ? params.value : "-"),
+    },
+    {
+      field: "subtotal",
+      headerName: "Subtotal Item",
+      width: 130,
+      renderCell: (params) =>
+        params.row.type === "item"
+          ? `Rp ${(params.value || 0).toLocaleString("id-ID")}`
+          : "-",
+    },
+    {
+      field: "totalSubtotal",
+      headerName: "Total Subtotal",
+      width: 140,
+      renderCell: (params) =>
+        params.row.type === "header"
+          ? `Rp ${(params.value || 0).toLocaleString("id-ID")}`
+          : "-",
+    },
+    {
+      field: "totalBiayaTambahan",
+      headerName: "Total Biaya Tambahan",
+      width: 160,
+      renderCell: (params) =>
+        params.row.type === "header"
+          ? `Rp ${(params.value || 0).toLocaleString("id-ID")}`
+          : "-",
+    },
+    {
+      field: "totalDP",
+      headerName: "DP",
+      width: 130,
+      renderCell: (params) =>
+        params.row.type === "header"
+          ? `Rp ${(params.value || 0).toLocaleString("id-ID")}`
+          : "-",
+    },
+    {
+      field: "grandTotal",
+      headerName: "Grand Total",
+      width: 140,
+      renderCell: (params) =>
+        params.row.type === "header"
+          ? `Rp ${(params.value || 0).toLocaleString("id-ID")}`
+          : "-",
+    },
+    {
+      field: "sisaPembayaran",
+      headerName: "Sisa Pembayaran",
+      width: 150,
+      renderCell: (params) =>
+        params.row.type === "header"
+          ? `Rp ${(params.value || 0).toLocaleString("id-ID")}`
+          : "-",
+    },
+  ];
+
+  const pesananColumns = [
+    {
+      field: "type",
+      headerName: "Type",
+      width: 80,
+      renderCell: (params) => (params.value === "header" ? "Header" : "Item"),
+    },
+    {
+      field: "pesanan_nama",
+      headerName: "Nama Pemesan",
+      width: 150,
+      renderCell: (params) =>
+        params.row.type === "header" ? params.value : "-",
+    },
+    {
+      field: "pesanan_status",
+      headerName: "Status",
+      width: 120,
+      renderCell: (params) =>
+        params.row.type === "header" ? params.value : "-",
+    },
+    {
+      field: "pesanan_id",
+      headerName: "Pesanan ID",
+      width: 120,
+      renderCell: (params) =>
+        params.row.type === "header" ? params.value : "-",
+    },
+    {
+      field: "tanggal",
+      headerName: "Tanggal Pesanan",
+      width: 180,
+      renderCell: (params) =>
+        params.row.type === "header" ? params.value : "-",
+    },
+    {
+      field: "tanggal_pengiriman",
+      headerName: "Tanggal Pengiriman",
+      width: 180,
+      renderCell: (params) =>
+        params.row.type === "header" ? params.value : "-",
+    },
+    {
+      field: "menu_id",
+      headerName: "Menu ID",
+      width: 100,
+      renderCell: (params) => (params.row.type === "item" ? params.value : "-"),
+    },
+    {
+      field: "menu_nama",
+      headerName: "Menu",
+      width: 150,
+      renderCell: (params) => (params.row.type === "item" ? params.value : "-"),
+    },
+    {
+      field: "menu_harga",
+      headerName: "Harga",
+      width: 130,
+      renderCell: (params) =>
+        params.row.type === "item"
+          ? `Rp ${(params.value || 0).toLocaleString("id-ID")}`
+          : "-",
+    },
+    {
+      field: "pesanan_detail_jumlah",
+      headerName: "Jumlah",
+      width: 100,
+      renderCell: (params) => (params.row.type === "item" ? params.value : "-"),
+    },
+    {
+      field: "subtotal",
+      headerName: "Subtotal Item",
+      width: 140,
+      renderCell: (params) =>
+        params.row.type === "item"
+          ? `Rp ${(params.value || 0).toLocaleString("id-ID")}`
+          : "-",
+    },
+    {
+      field: "total",
+      headerName: "Total Pesanan",
+      width: 150,
+      renderCell: (params) =>
+        params.row.type === "header"
+          ? `Rp ${(params.value || 0).toLocaleString("id-ID")}`
+          : "-",
+    },
+  ];
+
+  const theme = createTheme({
+    palette: {
+      primary: {
+        main: "#8B7355",
+      },
+    },
+    components: {
+      MuiDataGrid: {
+        styleOverrides: {
+          root: {
+            "& .MuiDataGrid-columnHeader": {
+              backgroundColor: "#ADD8E6",
+              color: "black",
+              fontWeight: "bold",
+            },
+            "& .header-row": {
+              backgroundColor: "#FFFF00 !important",
+            },
+          },
+        },
+      },
+    },
+  });
+
+  const getRowClassName = (params) => {
+    if (params.row.type === "header") {
+      return "header-row";
+    }
+    return "";
+  };
+
+  // Get data to download - use filtered rows if available, otherwise use all rows
+  const getDownloadData = (filtered, all) => {
+    return filtered.length > 0 ? filtered : all;
+  };
+
+  // Download Excel functions
+  const downloadPenjualanExcel = () => {
+    const dataToDownload = getDownloadData(
+      filteredPenjualanRows,
+      penjualanRows
+    );
+    const exportData = dataToDownload.map((row) => ({
+      Tipe: row.type === "header" ? "Header" : "Item",
+      "ID Penjualan": row.type === "header" ? row.header_penjualan_id : "-",
+      "Pegawai ID": row.type === "header" ? row.pegawai_id : "-",
+      Tanggal: row.type === "header" ? row.tanggal : "-",
+      "Jenis Transaksi": row.type === "header" ? row.jenis || "-" : "-",
+      "Menu ID": row.type === "item" ? row.menu_id : "-",
+      Menu: row.type === "item" ? row.menu_nama : "-",
+      Harga: row.type === "item" ? row.menu_harga || 0 : "-",
+      Jumlah: row.type === "item" ? row.penjualan_jumlah : "-",
+      "Subtotal Item": row.type === "item" ? row.subtotal || 0 : "-",
+      "Total Subtotal": row.type === "header" ? row.totalSubtotal || 0 : "-",
+      "Total Biaya Tambahan":
+        row.type === "header" ? row.totalBiayaTambahan || 0 : "-",
+      DP: row.type === "header" ? row.totalDP || 0 : "-",
+      "Grand Total": row.type === "header" ? row.grandTotal || 0 : "-",
+      "Sisa Pembayaran": row.type === "header" ? row.sisaPembayaran || 0 : "-",
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Penjualan");
+    const filename = `Laporan_Penjualan_${getCurrentDateTimeForFilename()}.xlsx`;
+    XLSX.writeFile(workbook, filename);
+  };
+
+  const downloadPembelianExcel = () => {
+    const dataToDownload = getDownloadData(
+      filteredPembelianRows,
+      pembelianRows
+    );
+    const exportData = dataToDownload.map((row) => ({
+      ID: row.pembelian_id,
+      Tanggal: row.tanggal,
+      "Bahan Baku ID": row.bahan_baku_id,
+      "Bahan Baku Nama": row.bahan_baku_nama,
+      "Jumlah Beli": row.pembelian_jumlah,
+      Satuan: row.pembelian_satuan,
+      "Harga/Satuan": row.pembelian_harga_satuan || 0,
+      Subtotal: row.subtotal || 0,
+      "Sisa Stok": row.bahan_baku_jumlah,
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Pembelian");
+    const filename = `Laporan_Pembelian_${getCurrentDateTimeForFilename()}.xlsx`;
+    XLSX.writeFile(workbook, filename);
+  };
+
+  const downloadPesananExcel = () => {
+    const dataToDownload = getDownloadData(filteredPesananRows, pesananRows);
+    const exportData = dataToDownload.map((row) => ({
+      Tipe: row.type === "header" ? "Header" : "Item",
+      "Nama Pemesan": row.type === "header" ? row.pesanan_nama : "-",
+      Status: row.type === "header" ? row.pesanan_status : "-",
+      "Pesanan ID": row.type === "header" ? row.pesanan_id : "-",
+      "Tanggal Pesanan": row.type === "header" ? row.tanggal : "-",
+      "Tanggal Pengiriman":
+        row.type === "header" ? row.tanggal_pengiriman : "-",
+      "Menu ID": row.type === "item" ? row.menu_id : "-",
+      Menu: row.type === "item" ? row.menu_nama : "-",
+      Harga: row.type === "item" ? row.menu_harga || 0 : "-",
+      Jumlah: row.type === "item" ? row.pesanan_detail_jumlah : "-",
+      "Subtotal Item": row.type === "item" ? row.subtotal || 0 : "-",
+      "Total Pesanan": row.type === "header" ? row.total || 0 : "-",
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Pesanan");
+    const filename = `Laporan_Pesanan_${getCurrentDateTimeForFilename()}.xlsx`;
+    XLSX.writeFile(workbook, filename);
   };
 
   return (
@@ -248,7 +631,7 @@ export const LaporanKeuanganPage = () => {
       <Container size="lg">
         <Stack spacing="lg">
           {/* Filter Section */}
-          <Paper shadow="sm" p="md" radius="md">
+          <Paper shadow="sm" p="md" radius="md" pb="xl">
             <Stack spacing="md">
               <Title order={4}>Sort By:</Title>
 
@@ -270,666 +653,11 @@ export const LaporanKeuanganPage = () => {
                   </Group>
                 </Radio.Group>
               </Group>
-              {/* Tanggal & Waktu Filter */}
-              <Stack spacing="md">
-                {/* For Penjualan, Pesanan, and All - Combined Datetime */}
-                {(jenisLaporan === "penjualan" ||
-                  jenisLaporan === "pesanan" ||
-                  jenisLaporan === "all") && (
-                  <Group spacing="md" align="flex-end">
-                    <Box style={{ flex: 1 }}>
-                      <Text size="sm" weight={500} mb={5}>
-                        Tanggal dan Waktu
-                      </Text>
-                      <Group spacing="xs">
-                        <TextInput
-                          type="datetime-local"
-                          placeholder="Tanggal & Waktu Mulai"
-                          style={{ width: "220px" }}
-                          value={
-                            tanggalStart && jamStart
-                              ? `${tanggalStart}T${jamStart}`
-                              : ""
-                          }
-                          onChange={(e) => {
-                            const [date, time] =
-                              e.currentTarget.value.split("T");
-                            setTanggalStart(date || "");
-                            setJamStart(time || "00:00");
-                          }}
-                        />
-                        <Text>Sampai</Text>
-                        <TextInput
-                          type="datetime-local"
-                          placeholder="Tanggal & Waktu Akhir"
-                          style={{ width: "220px" }}
-                          value={
-                            tanggalEnd && jamEnd
-                              ? `${tanggalEnd}T${jamEnd}`
-                              : ""
-                          }
-                          onChange={(e) => {
-                            const [date, time] =
-                              e.currentTarget.value.split("T");
-                            setTanggalEnd(date || "");
-                            setJamEnd(time || "23:59");
-                          }}
-                        />
-                      </Group>
-                    </Box>
-                  </Group>
-                )}
-
-                {/* For Pembelian - Date Only */}
-                {jenisLaporan === "pembelian" && (
-                  <Group spacing="md" align="flex-end">
-                    <Box style={{ flex: 1 }}>
-                      <Text size="sm" weight={500} mb={5}>
-                        Tanggal
-                      </Text>
-                      <Group spacing="xs">
-                        <TextInput
-                          type="date"
-                          placeholder="Tanggal Mulai"
-                          style={{ width: "180px" }}
-                          value={tanggalStart}
-                          onChange={(e) =>
-                            setTanggalStart(e.currentTarget.value)
-                          }
-                        />
-                        <Text>Sampai</Text>
-                        <TextInput
-                          type="date"
-                          placeholder="Tanggal Akhir"
-                          style={{ width: "180px" }}
-                          value={tanggalEnd}
-                          onChange={(e) => setTanggalEnd(e.currentTarget.value)}
-                        />
-                      </Group>
-                    </Box>
-                  </Group>
-                )}
-
-                {/* Conditional Filter Fields */}
-                {(jenisLaporan === "pesanan" || jenisLaporan === "all") && (
-                  <>
-                    <TextInput
-                      placeholder="Filter Nama Pemesan"
-                      label="Nama Pemesan"
-                      value={filterNama}
-                      onChange={(e) => setFilterNama(e.currentTarget.value)}
-                    />
-                    <TextInput
-                      placeholder="Filter Menu ID"
-                      label="Menu ID"
-                      value={filterMenuId}
-                      onChange={(e) => setFilterMenuId(e.currentTarget.value)}
-                    />
-                  </>
-                )}
-
-                {(jenisLaporan === "pembelian" || jenisLaporan === "all") && (
-                  <TextInput
-                    placeholder="Filter Bahan Baku ID"
-                    label="Bahan Baku ID"
-                    value={filterBahanId}
-                    onChange={(e) => setFilterBahanId(e.currentTarget.value)}
-                  />
-                )}
-              </Stack>
-
-              <Group position="left">
-                <Button
-                  color="red"
-                  onClick={onApplyFilter}
-                  style={{ borderRadius: "20px" }}>
-                  Apply Filter
-                </Button>
-              </Group>
             </Stack>
           </Paper>
-
-          {/* Penjualan Section */}
-          {(jenisLaporan === "penjualan" ||
-            (jenisLaporan === "all" && currentPage === 1)) && (
-            <Paper shadow="sm" p="lg" radius="md">
-              <Group justify="center" pb="md">
-                <Title order={3}>Penjualan</Title>
-              </Group>
-              <Stack gap="md">
-                {dataPenjualan.length > 0 ? (
-                  dataPenjualan
-                    .sort(
-                      (a, b) => a.header_penjualan_id - b.header_penjualan_id
-                    )
-                    .map((item, index) => (
-                      <Stack
-                        key={index}
-                        gap="sm"
-                        p="md"
-                        style={{
-                          border: "1px solid #dee2e6",
-                          borderRadius: "8px",
-                        }}>
-                        {/* Header Penjualan */}
-                        <Group justify="space-between">
-                          <div>
-                            {item.pegawai_id && (
-                              <Text size="sm" c="white" mt={5}>
-                                Pegawai ID: {item.pegawai_id}
-                              </Text>
-                            )}
-                          </div>
-                          <div>
-                            <Text size="sm" c="white">
-                              ID Penjualan: {item.header_penjualan_id}
-                            </Text>
-                          </div>
-                        </Group>
-
-                        {/* Informasi Penjualan */}
-                        <Group grow>
-                          <div>
-                            <Text size="sm" c="white">
-                              Tanggal
-                            </Text>
-                            <Text size="lg" fw={500}>
-                              {formatDateTime(item.tanggal)}
-                            </Text>
-                          </div>
-                          <div>
-                            <Text size="sm" c="white">
-                              Jenis Transaksi
-                            </Text>
-                            <Text size="lg" fw={500}>
-                              {item.jenis || "-"}
-                            </Text>
-                          </div>
-                        </Group>
-
-                        {/* Detail Penjualan */}
-                        <Stack gap="xs">
-                          <Text size="lg" fw={500}>
-                            Detail Penjualan:
-                          </Text>
-                          <Box sx={{ overflowX: "auto" }}>
-                            <Table size="sm">
-                              <Table.Thead>
-                                <Table.Tr
-                                  style={{ backgroundColor: "#F5F5F5" }}>
-                                  <Table.Th
-                                    style={{
-                                      fontSize: "14px",
-                                      color: "brown",
-                                    }}>
-                                    Menu ID
-                                  </Table.Th>
-                                  <Table.Th
-                                    style={{
-                                      fontSize: "14px",
-                                      color: "brown",
-                                    }}>
-                                    Menu
-                                  </Table.Th>
-                                  <Table.Th
-                                    style={{
-                                      fontSize: "14px",
-                                      textAlign: "right",
-                                      color: "brown",
-                                    }}>
-                                    Harga
-                                  </Table.Th>
-                                  <Table.Th
-                                    style={{
-                                      fontSize: "14px",
-                                      textAlign: "center",
-                                      color: "brown",
-                                    }}>
-                                    Jumlah
-                                  </Table.Th>
-                                  <Table.Th
-                                    style={{
-                                      fontSize: "14px",
-                                      textAlign: "right",
-                                      color: "brown",
-                                    }}>
-                                    Subtotal
-                                  </Table.Th>
-                                </Table.Tr>
-                              </Table.Thead>
-
-                              <Table.Tbody>
-                                {item.items.map((menuItem, idx) => (
-                                  <Table.Tr
-                                    key={idx}
-                                    style={{ backgroundColor: "#F5F5F5" }}>
-                                    <Table.Td
-                                      style={{
-                                        fontSize: "14px",
-                                        color: "brown",
-                                      }}>
-                                      {menuItem.menu_id}
-                                    </Table.Td>
-
-                                    <Table.Td
-                                      style={{
-                                        fontSize: "14px",
-                                        color: "brown",
-                                      }}>
-                                      {menuItem.menu_nama}
-                                    </Table.Td>
-
-                                    <Table.Td
-                                      style={{
-                                        fontSize: "14px",
-                                        textAlign: "right",
-                                        color: "brown",
-                                      }}>
-                                      Rp{" "}
-                                      {(
-                                        menuItem.menu_harga || 0
-                                      ).toLocaleString("id-ID")}
-                                    </Table.Td>
-
-                                    <Table.Td
-                                      style={{
-                                        fontSize: "14px",
-                                        textAlign: "center",
-                                        color: "brown",
-                                      }}>
-                                      {menuItem.penjualan_jumlah}
-                                    </Table.Td>
-
-                                    <Table.Td
-                                      style={{
-                                        fontSize: "14px",
-                                        textAlign: "right",
-                                        color: "brown",
-                                      }}>
-                                      Rp{" "}
-                                      {(menuItem.subtotal || 0).toLocaleString(
-                                        "id-ID"
-                                      )}
-                                    </Table.Td>
-                                  </Table.Tr>
-                                ))}
-                              </Table.Tbody>
-                            </Table>
-                          </Box>
-
-                          {/* Calculation Summary */}
-                          <Stack
-                            gap="xs"
-                            p="md"
-                            style={{
-                              backgroundColor: "#f8f9fa",
-                              borderRadius: "8px",
-                            }}>
-                            <Group justify="space-between">
-                              <Text fw={500} c="brown">
-                                Total Subtotal:
-                              </Text>
-                              <Text fw={500} c="brown">
-                                Rp{" "}
-                                {(item.totalSubtotal || 0).toLocaleString(
-                                  "id-ID"
-                                )}
-                              </Text>
-                            </Group>
-
-                            <Group justify="space-between">
-                              <Text fw={500} c="brown">
-                                Total Biaya Tambahan:
-                              </Text>
-                              <Text fw={500} c="brown">
-                                Rp{" "}
-                                {(item.totalBiayaTambahan || 0).toLocaleString(
-                                  "id-ID"
-                                )}
-                              </Text>
-                            </Group>
-
-                            <Group justify="space-between">
-                              <Text fw={500} c="brown">
-                                DP ({item.persentaseDP}% dari Total Subtotal):
-                              </Text>
-                              <Text fw={500} c="brown">
-                                Rp {(item.totalDP || 0).toLocaleString("id-ID")}
-                              </Text>
-                            </Group>
-
-                            <Group justify="space-between">
-                              <Text fw={500} c="brown">
-                                Grand Total (Subtotal + Biaya):
-                              </Text>
-                              <Text fw={500} c="brown">
-                                Rp{" "}
-                                {(item.grandTotal || 0).toLocaleString("id-ID")}
-                              </Text>
-                            </Group>
-
-                            <Group
-                              justify="space-between"
-                              style={{
-                                borderTop: "2px solid #8B7355",
-                                paddingTop: "10px",
-                              }}>
-                              <Text fw={700} size="lg" c="brown">
-                                Sisa Pembayaran (Grand Total - DP):
-                              </Text>
-
-                              <Text fw={700} size="lg" c="brown">
-                                Rp{" "}
-                                {(item.sisaPembayaran || 0).toLocaleString(
-                                  "id-ID"
-                                )}
-                              </Text>
-                            </Group>
-                          </Stack>
-                        </Stack>
-                      </Stack>
-                    ))
-                ) : (
-                  <Box style={{ textAlign: "center", padding: "20px" }}>
-                    <Text>Tidak ada data penjualan</Text>
-                  </Box>
-                )}
-              </Stack>
-
-              {/* Total Keseluruhan */}
-              <Group justify="flex-end" pt="md" mt="lg">
-                <Text
-                  size="xl"
-                  fw={700}
-                  style={{
-                    borderTop: "2px solid #8B7355",
-                    paddingTop: "10px",
-                  }}>
-                  Total Penjualan: Rp {totalPenjualan.toLocaleString("id-ID")}
-                </Text>
-              </Group>
-            </Paper>
-          )}
-
-          {/* Pembelian Section */}
-          {(jenisLaporan === "pembelian" ||
-            (jenisLaporan === "all" && currentPage === 2)) && (
-            <Paper shadow="sm" p="lg" radius="md">
-              <Group justify="center" pb="md">
-                <Title order={3}>Pembelian</Title>
-              </Group>
-              <Box sx={{ overflowX: "auto" }}>
-                <Table>
-                  <thead>
-                    <tr style={{ backgroundColor: "#8B7355" }}>
-                      <th style={headerCellStyle}>ID</th>
-                      <th style={headerCellStyle}>Tanggal</th>
-                      <th style={headerCellStyle}>Bahan Baku ID</th>
-                      <th style={headerCellStyle}>Bahan Baku Nama</th>
-                      <th style={headerCellStyle}>Jumlah Beli</th>
-                      <th style={headerCellStyle}>Satuan</th>
-                      <th style={headerCellStyle}>Harga/Satuan</th>
-                      <th style={headerCellStyle}>Subtotal</th>
-                      <th style={headerCellStyle}>Sisa Stok</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dataPembelian.length > 0 ? (
-                      dataPembelian.map((item, index) => (
-                        <tr
-                          key={index}
-                          style={{
-                            backgroundColor: "white",
-                            color: "black",
-                          }}>
-                          <td style={cellStyle}>{item.pembelian_id}</td>
-                          <td style={cellStyle}>{formatDate(item.tanggal)}</td>
-                          <td style={cellStyle}>{item.bahan_baku_id}</td>
-                          <td style={cellStyle}>{item.bahan_baku_nama}</td>
-                          <td style={cellStyle}>{item.pembelian_jumlah}</td>
-                          <td style={cellStyle}>{item.pembelian_satuan}</td>
-                          <td style={cellStyle}>
-                            Rp{" "}
-                            {(item.pembelian_harga_satuan || 0).toLocaleString(
-                              "id-ID"
-                            )}
-                          </td>
-                          <td style={cellStyle}>
-                            Rp {(item.subtotal || 0).toLocaleString("id-ID")}
-                          </td>
-                          <td
-                            style={{
-                              ...cellStyle,
-                              fontWeight: "bold",
-                              color:
-                                item.bahan_baku_jumlah === 0
-                                  ? "#d32f2f"
-                                  : "#2e7d32",
-                            }}>
-                            {item.bahan_baku_jumlah !== undefined
-                              ? `${item.bahan_baku_jumlah} ${item.pembelian_satuan}`
-                              : "-"}
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr style={{ backgroundColor: "white", color: "black" }}>
-                        <td
-                          colSpan={9}
-                          style={{ ...cellStyle, textAlign: "center" }}>
-                          Tidak ada data pembelian
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </Table>
-              </Box>
-              <Group justify="flex-end" pt="md">
-                <Text size="xl" weight={700}>
-                  Total: Rp {totalPembelian.toLocaleString("id-ID")}
-                </Text>
-              </Group>
-            </Paper>
-          )}
-
-          {/* Pesanan Section */}
-          {(jenisLaporan === "pesanan" ||
-            (jenisLaporan === "all" && currentPage === 3)) && (
-            <Paper shadow="sm" p="lg" radius="md">
-              <Group justify="center" pb="md">
-                <Title order={3}>Pesanan</Title>
-              </Group>
-              <Stack gap="md">
-                {dataPesanan.length > 0 ? (
-                  dataPesanan.map((item, index) => (
-                    <Stack
-                      key={index}
-                      gap="sm"
-                      p="md"
-                      style={{
-                        border: "1px solid #dee2e6",
-                        borderRadius: "8px",
-                      }}>
-                      {/* Header Pesanan */}
-                      <Group justify="space-between">
-                        <div>
-                          <Text size="lg" fw={600}>
-                            Nama Pemesan: {item.pesanan_nama}
-                          </Text>
-                        </div>
-                        <Badge color="blue" size="lg">
-                          {item.pesanan_status}
-                        </Badge>
-                      </Group>
-
-                      {/* Informasi Pesanan */}
-                      <Group grow>
-                        <div>
-                          <Text size="sm" c="white">
-                            Pesanan ID
-                          </Text>
-                          <Text size="lg" fw={500}>
-                            {item.pesanan_id}
-                          </Text>
-                        </div>
-                        <div>
-                          <Text size="sm" c="white">
-                            Tanggal Pesanan
-                          </Text>
-                          <Text size="lg" fw={500}>
-                            {formatDateTime(item.tanggal)}
-                          </Text>
-                        </div>
-                        <div>
-                          <Text size="sm" c="white">
-                            Tanggal Pengiriman
-                          </Text>
-                          <Text size="lg" fw={500}>
-                            {formatDateTime(item.tanggal_pengiriman)}
-                          </Text>
-                        </div>
-                      </Group>
-
-                      {/* Detail Pesanan */}
-                      <Stack gap="xs">
-                        <Text size="lg" fw={500}>
-                          Detail Pesanan:
-                        </Text>
-                        <Box sx={{ overflowX: "auto" }}>
-                          <Table size="sm">
-                            <Table.Thead>
-                              <Table.Tr style={{ backgroundColor: "#F5F5F5" }}>
-                                <Table.Th
-                                  style={{ fontSize: "14px", color: "brown" }}>
-                                  Menu ID
-                                </Table.Th>
-                                <Table.Th
-                                  style={{ fontSize: "14px", color: "brown" }}>
-                                  Menu
-                                </Table.Th>
-                                <Table.Th
-                                  style={{
-                                    fontSize: "14px",
-                                    textAlign: "right",
-                                    color: "brown",
-                                  }}>
-                                  Harga
-                                </Table.Th>
-                                <Table.Th
-                                  style={{
-                                    fontSize: "14px",
-                                    textAlign: "center",
-                                    color: "brown",
-                                  }}>
-                                  Jumlah
-                                </Table.Th>
-                                <Table.Th
-                                  style={{
-                                    fontSize: "14px",
-                                    textAlign: "right",
-                                    color: "brown",
-                                  }}>
-                                  Subtotal
-                                </Table.Th>
-                              </Table.Tr>
-                            </Table.Thead>
-
-                            <Table.Tbody>
-                              {item.items.map((menuItem, idx) => (
-                                <Table.Tr
-                                  key={idx}
-                                  style={{ backgroundColor: "#F5F5F5" }}>
-                                  <Table.Td
-                                    style={{
-                                      fontSize: "14px",
-                                      color: "brown",
-                                    }}>
-                                    {menuItem.menu_id}
-                                  </Table.Td>
-
-                                  <Table.Td
-                                    style={{
-                                      fontSize: "14px",
-                                      color: "brown",
-                                    }}>
-                                    {menuItem.menu_nama}
-                                  </Table.Td>
-
-                                  <Table.Td
-                                    style={{
-                                      fontSize: "14px",
-                                      textAlign: "right",
-                                      color: "brown",
-                                    }}>
-                                    Rp{" "}
-                                    {(menuItem.menu_harga || 0).toLocaleString(
-                                      "id-ID"
-                                    )}
-                                  </Table.Td>
-
-                                  <Table.Td
-                                    style={{
-                                      fontSize: "14px",
-                                      textAlign: "center",
-                                      color: "brown",
-                                    }}>
-                                    {menuItem.pesanan_detail_jumlah}
-                                  </Table.Td>
-
-                                  <Table.Td
-                                    style={{
-                                      fontSize: "14px",
-                                      textAlign: "right",
-                                      color: "brown",
-                                    }}>
-                                    Rp{" "}
-                                    {(menuItem.subtotal || 0).toLocaleString(
-                                      "id-ID"
-                                    )}
-                                  </Table.Td>
-                                </Table.Tr>
-                              ))}
-                            </Table.Tbody>
-                          </Table>
-                        </Box>
-
-                        {/* Total per transaksi */}
-                        <Group justify="flex-end">
-                          <Text fw={600} size="lg" c="white">
-                            Subtotal:{" "}
-                            {item.total
-                              ? `Rp ${item.total.toLocaleString("id-ID")}`
-                              : "Rp 0"}
-                          </Text>
-                        </Group>
-                      </Stack>
-                    </Stack>
-                  ))
-                ) : (
-                  <Box style={{ textAlign: "center", padding: "20px" }}>
-                    <Text>Tidak ada data pesanan</Text>
-                  </Box>
-                )}
-              </Stack>
-
-              {/* Total Keseluruhan */}
-              <Group justify="flex-end" pt="md" mt="lg">
-                <Text
-                  size="xl"
-                  fw={700}
-                  style={{
-                    borderTop: "2px solid #8B7355",
-                    paddingTop: "10px",
-                  }}>
-                  Total Pesanan: Rp {totalPesanan.toLocaleString("id-ID")}
-                </Text>
-              </Group>
-            </Paper>
-          )}
-
           {/* Pagination for "all" mode */}
           {jenisLaporan === "all" && (
-            <Group justify="center" mt="lg">
+            <Group justify="center" mt="md" mb="md">
               <Pagination
                 value={currentPage}
                 onChange={setCurrentPage}
@@ -937,6 +665,218 @@ export const LaporanKeuanganPage = () => {
                 siblings={1}
               />
             </Group>
+          )}
+          {/* Penjualan Section */}
+          {(jenisLaporan === "penjualan" ||
+            (jenisLaporan === "all" && currentPage === 1)) && (
+            <Paper shadow="sm" p="lg" radius="md">
+              <Group justify="space-between" pb="md">
+                <Title order={3}>Penjualan</Title>
+                <Button
+                  onClick={downloadPenjualanExcel}
+                  disabled={penjualanRows.length === 0}>
+                  Download Excel
+                </Button>
+              </Group>
+              {dataPenjualan.length > 0 ? (
+                <Stack gap="md">
+                  <ThemeProvider theme={theme}>
+                    <div style={{ height: 600, width: "100%" }}>
+                      <DataGrid
+                        rows={penjualanRows}
+                        columns={penjualanColumns}
+                        pageSize={10}
+                        rowsPerPageOptions={[5, 10, 20]}
+                        pagination
+                        disableSelectionOnClick
+                        density="compact"
+                        getRowClassName={getRowClassName}
+                        onFilterModelChange={(newFilterModel) => {
+                          if (newFilterModel.items.length === 0) {
+                            // No filter applied, reset to all rows
+                            setFilteredPenjualanRows([]);
+                          } else {
+                            // Get filtered rows
+                            const filteredRows = penjualanRows.filter((row) => {
+                              return newFilterModel.items.every((item) => {
+                                const value = row[item.field];
+                                if (item.operator === "contains") {
+                                  return String(value).includes(item.value);
+                                }
+                                if (item.operator === "equals") {
+                                  return String(value) === item.value;
+                                }
+                                return true;
+                              });
+                            });
+                            setFilteredPenjualanRows(filteredRows);
+                          }
+                        }}
+                      />
+                    </div>
+                  </ThemeProvider>
+
+                  {/* Total Keseluruhan */}
+                  <Group justify="flex-end" pt="md" mt="lg">
+                    <Text
+                      size="xl"
+                      fw={700}
+                      style={{
+                        borderTop: "2px solid #8B7355",
+                        paddingTop: "10px",
+                      }}>
+                      Total Penjualan: Rp{" "}
+                      {totalPenjualan.toLocaleString("id-ID")}
+                    </Text>
+                  </Group>
+                </Stack>
+              ) : (
+                <Box style={{ textAlign: "center", padding: "20px" }}>
+                  <Text>Tidak ada data penjualan</Text>
+                </Box>
+              )}
+            </Paper>
+          )}
+
+          {/* Pembelian Section */}
+          {(jenisLaporan === "pembelian" ||
+            (jenisLaporan === "all" && currentPage === 2)) && (
+            <Paper shadow="sm" p="lg" radius="md">
+              <Group justify="space-between" pb="md">
+                <Title order={3}>Pembelian</Title>
+                <Button
+                  onClick={downloadPembelianExcel}
+                  disabled={pembelianRows.length === 0}>
+                  Download Excel
+                </Button>
+              </Group>
+              {dataPembelian.length > 0 ? (
+                <Stack gap="md">
+                  <ThemeProvider theme={theme}>
+                    <div style={{ height: 600, width: "100%" }}>
+                      <DataGrid
+                        rows={pembelianRows}
+                        columns={pembelianColumns}
+                        pageSize={10}
+                        rowsPerPageOptions={[5, 10, 20]}
+                        pagination
+                        disableSelectionOnClick
+                        density="compact"
+                        onFilterModelChange={(newFilterModel) => {
+                          if (newFilterModel.items.length === 0) {
+                            // No filter applied, reset to all rows
+                            setFilteredPembelianRows([]);
+                          } else {
+                            // Get filtered rows
+                            const filteredRows = pembelianRows.filter((row) => {
+                              return newFilterModel.items.every((item) => {
+                                const value = row[item.field];
+                                if (item.operator === "contains") {
+                                  return String(value).includes(item.value);
+                                }
+                                if (item.operator === "equals") {
+                                  return String(value) === item.value;
+                                }
+                                return true;
+                              });
+                            });
+                            setFilteredPembelianRows(filteredRows);
+                          }
+                        }}
+                      />
+                    </div>
+                  </ThemeProvider>
+
+                  {/* Total Keseluruhan */}
+                  <Group justify="flex-end" pt="md" mt="lg">
+                    <Text
+                      size="xl"
+                      fw={700}
+                      style={{
+                        borderTop: "2px solid #8B7355",
+                        paddingTop: "10px",
+                      }}>
+                      Total: Rp {totalPembelian.toLocaleString("id-ID")}
+                    </Text>
+                  </Group>
+                </Stack>
+              ) : (
+                <Box style={{ textAlign: "center", padding: "20px" }}>
+                  <Text>Tidak ada data pembelian</Text>
+                </Box>
+              )}
+            </Paper>
+          )}
+
+          {/* Pesanan Section */}
+          {(jenisLaporan === "pesanan" ||
+            (jenisLaporan === "all" && currentPage === 3)) && (
+            <Paper shadow="sm" p="lg" radius="md">
+              <Group justify="space-between" pb="md">
+                <Title order={3}>Pesanan</Title>
+                <Button
+                  onClick={downloadPesananExcel}
+                  disabled={pesananRows.length === 0}>
+                  Download Excel
+                </Button>
+              </Group>
+              {dataPesanan.length > 0 ? (
+                <Stack gap="md">
+                  <ThemeProvider theme={theme}>
+                    <div style={{ height: 600, width: "100%" }}>
+                      <DataGrid
+                        rows={pesananRows}
+                        columns={pesananColumns}
+                        pageSize={10}
+                        rowsPerPageOptions={[5, 10, 20]}
+                        pagination
+                        disableSelectionOnClick
+                        density="compact"
+                        getRowClassName={getRowClassName}
+                        onFilterModelChange={(newFilterModel) => {
+                          if (newFilterModel.items.length === 0) {
+                            // No filter applied, reset to all rows
+                            setFilteredPesananRows([]);
+                          } else {
+                            // Get filtered rows
+                            const filteredRows = pesananRows.filter((row) => {
+                              return newFilterModel.items.every((item) => {
+                                const value = row[item.field];
+                                if (item.operator === "contains") {
+                                  return String(value).includes(item.value);
+                                }
+                                if (item.operator === "equals") {
+                                  return String(value) === item.value;
+                                }
+                                return true;
+                              });
+                            });
+                            setFilteredPesananRows(filteredRows);
+                          }
+                        }}
+                      />
+                    </div>
+                  </ThemeProvider>
+
+                  {/* Total Keseluruhan */}
+                  <Group justify="flex-end" pt="md" mt="lg">
+                    <Text
+                      size="xl"
+                      fw={700}
+                      style={{
+                        borderTop: "2px solid #8B7355",
+                        paddingTop: "10px",
+                      }}>
+                      Total Pesanan: Rp {totalPesanan.toLocaleString("id-ID")}
+                    </Text>
+                  </Group>
+                </Stack>
+              ) : (
+                <Box style={{ textAlign: "center", padding: "20px" }}>
+                  <Text>Tidak ada data pesanan</Text>
+                </Box>
+              )}
+            </Paper>
           )}
         </Stack>
       </Container>
