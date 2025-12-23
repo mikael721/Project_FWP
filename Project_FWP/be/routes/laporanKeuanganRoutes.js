@@ -1,12 +1,13 @@
 const express = require("express");
 const router = express.Router();
 const laporanKeuanganController = require("../controllers/laporanKeuanganController");
-const { isAuthenticate } = require("../middleware/middleware");
+const { isAuthenticate, isManager } = require("../middleware/middleware");
 
 // Get Laporan Penjualan
 router.get(
   "/penjualan",
   isAuthenticate,
+  isManager,
   laporanKeuanganController.getLaporanPenjualan
 );
 
@@ -14,6 +15,7 @@ router.get(
 router.get(
   "/pembelian",
   isAuthenticate,
+  isManager,
   laporanKeuanganController.getLaporanPembelian
 );
 
@@ -21,6 +23,7 @@ router.get(
 router.get(
   "/pesanan",
   isAuthenticate,
+  isManager,
   laporanKeuanganController.getLaporanPesanan
 );
 

@@ -5,7 +5,8 @@ import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router";
 
 // tambahan dari jumlah !!!
-const CardMenu = ({ img, harga, nama, id, jumlah }) => {
+// isManager true = manager
+const CardMenu = ({ img, harga, nama, id, jumlah, isManager }) => {
   // === VARIABEL ====
   let dispatch = useDispatch();
   let navigate = useNavigate();
@@ -51,17 +52,19 @@ const CardMenu = ({ img, harga, nama, id, jumlah }) => {
         <span className="infoHargaMenu">Rp {harga}</span> <br/>
         {jumlah ? (<div className="infoHargaMenu2">Jumlah : <span className="editInerJumlah">{jumlah}</span> <br/> </div>) : ('')}
         <br />
-        <span className="infoNamaMenu">{nama}</span> <br />
+        <div className="infoNamaMenu">{nama}</div> <br />
 
         {/* Tombol Akhir Untuk To Cart */}
-        
-        {jumlah ? ( 
-          <div
-            style={{ width: "100%", textAlign: "center", marginBottom: "10px" }}>
-            <button className="addToCartMenu" onClick={() => goToBahan(id)}>
-              Lihat Resep
-            </button>
-          </div>
+        {console.log(`isManager : ${isManager}`)}
+        {jumlah ? (
+          isManager ? (
+            <div
+              style={{ width: "100%", textAlign: "center", marginBottom: "10px" }}>
+              <button className="addToCartMenu" onClick={() => goToBahan(id)}>
+                Lihat Resep
+              </button>
+            </div>
+          ) : ('')
         ):(
           <div
             style={{ width: "100%", textAlign: "center", marginBottom: "10px" }}>

@@ -59,7 +59,10 @@ export const DetailMenuManagementPage = () => {
     try {
       setLoading(true);
       const response = await axios.get(
-        `${API_BASE}/api/menu_management/detail/${id}`
+        `${API_BASE}/api/menu_management/detail/${id}`,
+        {
+          headers: { "x-auth-token": userToken },
+        }
       );
 
       const dataArray = Array.isArray(response.data.data)
@@ -79,7 +82,10 @@ export const DetailMenuManagementPage = () => {
 
   const fetchBahanOptions = async () => {
     try {
-      const response = await axios.get(`${API_BASE}/api/bahan_baku/`);
+      const response = await axios.get(`${API_BASE}/api/bahan_baku/`,
+        {
+          headers: { "x-auth-token": userToken },
+        });
 
       const options = Array.isArray(response.data)
         ? response.data.map((item) => ({
@@ -124,7 +130,10 @@ export const DetailMenuManagementPage = () => {
 
       const response = await axios.post(
         `${API_BASE}/api/menu_management/detail`,
-        payload
+        payload,
+        {
+          headers: { "x-auth-token": userToken },
+        }
       );
 
       if (response.data && response.data.data) {
@@ -166,7 +175,10 @@ export const DetailMenuManagementPage = () => {
 
       const response = await axios.put(
         `${API_BASE}/api/menu_management/detail/${editingId}`,
-        payload
+        payload,
+        {
+          headers: { "x-auth-token": userToken },
+        }
       );
 
       if (response.data && response.data.data) {
@@ -193,7 +205,10 @@ export const DetailMenuManagementPage = () => {
   const handleDelete = async (deleteId) => {
     try {
       setLoading(true);
-      await axios.delete(`${API_BASE}/api/menu_management/detail/${deleteId}`);
+      await axios.delete(`${API_BASE}/api/menu_management/detail/${deleteId}`,
+        {
+          headers: { "x-auth-token": userToken },
+        });
       setBahanMenu((prev) =>
         prev.filter((item) => item.detail_menu_id !== deleteId)
       );

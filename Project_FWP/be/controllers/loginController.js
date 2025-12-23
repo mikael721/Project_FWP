@@ -36,7 +36,7 @@ exports.doLogin = async (req, res) => {
     const payload = {
       pegawai_id: isUserAda.pegawai_id,
       pegawai_nama: isUserAda.pegawai_nama,
-      pegawai_role: isUserAda.pegawai_role,
+      pegawai_role: isUserAda.role,
     };
 
     const jwtPass = process.env.JWT_SECRET;
@@ -55,3 +55,27 @@ exports.doLogin = async (req, res) => {
     return res.status(500).json({ error: error.message });
   }
 };
+
+exports.decryptToken = (req, res) => {
+  const token = req.headers.token;
+  const jwtPass = process.env.JWT_SECRET;
+  try{
+    if(!token){
+      return res.status(200).send({
+        message: "Token tidak ditemukan",
+        status: false
+      });
+    }
+    const decoded = jwt.verify(token, jwtPass);
+    return res.status(200).send({
+      message: "Token valid",
+      status: true,
+      data: decoded
+    });
+  }
+  catch(error){
+    return res.status(500).send({
+      message: error.message
+    });
+  }
+}

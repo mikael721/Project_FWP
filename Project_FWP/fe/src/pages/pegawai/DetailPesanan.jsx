@@ -13,11 +13,40 @@ const DetailPesanan = () => {
   let { id } = useParams();
 
   const [allMenu, setallMenu] = useState([]);
+  const [isManager, setisManager] = useState(false);
+  
 
   // === Lifecycle ===
   useEffect(() => {
     cekSudahLogin();
+    cekManager();
   }, []);
+
+  // === buat cek manager ===
+  const cekManager = async () => { 
+      await axios.post(`${API_BASE}/api/decrypt/dodecrypt`,
+        {}, // ini body
+        {
+          headers:{
+            token: userToken
+          }
+        }).then((res) => {
+          try {
+            // cek admin pa bukan
+            if(res.data.data.pegawai_role === "manager") {            
+              setisManager(true);
+            }
+            else{
+              setisManager(false);
+            }
+          } catch (error) {
+            return res.status(400).send({
+              message: `Gagal : ${error.message}`
+            })
+          }
+      });
+  }
+
   // === Cek login dan ambil data menu ===
   const cekSudahLogin = () => {
     if (!userToken) {
@@ -55,7 +84,8 @@ const DetailPesanan = () => {
               harga={d.menu.menu_harga}
               nama={d.menu.menu_nama}
               id={d.menu.menu_id}
-              jumlah={d.pesanan_detail_jumlah} // ganti ini ntik
+              jumlah={d.pesanan_detail_jumlah}
+              isManager={isManager}
             />
           );
         })}

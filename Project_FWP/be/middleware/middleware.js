@@ -48,4 +48,18 @@ let isAuthenticate = async (req, res, next) => {
   }
 };
 
-module.exports = { isAuthenticate };
+let isManager = async (req, res, next) => {
+  try {
+    const role = req.pegawai.role;
+    if(role !== "manager") {
+      return res.status(403).send({ message: "Akses ditolak. Hanya untuk manager" });
+    }
+    next();
+  } catch (err) {
+    return res.status(500).send({
+      error: err.message,
+    });
+  }
+};
+
+module.exports = { isAuthenticate,isManager };

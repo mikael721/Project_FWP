@@ -482,7 +482,6 @@ const Pesanan = () => {
         </div>
 
         <DataTable
-          withBorder
           borderRadius="md"
           striped
           highlightOnHover

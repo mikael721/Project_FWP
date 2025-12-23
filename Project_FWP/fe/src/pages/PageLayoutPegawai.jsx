@@ -8,14 +8,52 @@ import {
   Image,
   Menu,
 } from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
+import { useDisclosure, useSetState } from "@mantine/hooks";
 import logo from "../asset/logo.png";
+import { useSelector } from "react-redux";
+import { useEffect, useState } from "react";
+import axios from "axios";
+import { set } from "react-hook-form";
 
 const PageLayoutPegawai = () => {
   const [opened, { toggle, close }] = useDisclosure(false);
   const location = useLocation();
-
+  const [isManager, setisManager] = useState(false);
   const isActive = (path) => location.pathname === path;
+  const API_BASE = import.meta.env.VITE_API_BASE;
+
+
+  useEffect(() => {
+    cekManager();
+  },[])
+
+  // === cek role
+  const cekManager = async () => {
+    await axios.post(`${API_BASE}/api/decrypt/dodecrypt`,
+      {}, // ini body
+      {
+        headers:{
+          token: userToken
+        }
+      }).then((res) => {
+        try {
+          // cek admin pa bukan
+          if(res.data.data.pegawai_role === "manager") {            
+            setisManager(true);
+          }
+          else{
+            setisManager(false);
+          }
+        } catch (error) {
+          return res.status(400).send({
+            message: `Gagal : ${error.message}`
+          })
+        }
+    });
+  }
+
+  // === ini buat token user ===
+  const userToken = useSelector((state) => state.user.userToken);
 
   const getLinkStyle = (path) => ({
     textDecoration: "none",
@@ -39,27 +77,42 @@ const PageLayoutPegawai = () => {
             </Link>
 
             <Group visibleFrom="sm">
+              
               <Link
                 to="/pegawai/pesanan"
                 style={getLinkStyle("/pegawai/pesanan")}>
                 Pesanan
               </Link>
+              
               <Link
                 to="/pegawai/penjualan"
                 style={getLinkStyle("/pegawai/penjualan")}>
                 Penjualan
               </Link>
-              <Link to="/pegawai/menu" style={getLinkStyle("/pegawai/menu")}>
-                Menu
-              </Link>
-              <Link to="/pegawai/stok" style={getLinkStyle("/pegawai/stok")}>
-                Stok
-              </Link>
-              <Link
-                to="/pegawai/laporan"
-                style={getLinkStyle("/pegawai/laporan")}>
-                Laporan
-              </Link>
+
+              {/* === manager only === */}
+              {isManager && (
+                <Link to="/pegawai/menu" style={getLinkStyle("/pegawai/menu")}>
+                  Menu
+                </Link>
+              )}
+              
+              {/* === manager only === */}
+              {isManager && (
+                <Link to="/pegawai/stok" style={getLinkStyle("/pegawai/stok")}>
+                  Stok
+                </Link>
+              )}
+
+              {/* === manager only === */}
+              {isManager && (
+                <Link
+                  to="/pegawai/laporan"
+                  style={getLinkStyle("/pegawai/laporan")}>
+                  Laporan
+                </Link>
+              )}
+              
               <Link
                 to="/pegawai"
                 style={{
@@ -73,6 +126,7 @@ const PageLayoutPegawai = () => {
                 }}>
                 Log Out
               </Link>
+            
             </Group>
 
             <Menu

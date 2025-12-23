@@ -29,6 +29,9 @@ app.use(bodyParser.urlencoded({ extended: true }));
 // login
 app.use("/api/login", login);
 
+// decrypt token
+app.use("/api/decrypt", login);
+
 // menu management
 app.use("/api/menu_management", menuManagement);
 
@@ -46,7 +49,6 @@ app.use("/api/detail_penjualan", detailPenjualanRoutes);
 
 //history
 app.use("/api/history/", historyRoutes);
-// ====================================================================
 
 // main penjualan
 app.use("/api/main_penjualan", mainPenjualanRoutes);
@@ -63,7 +65,6 @@ app.listen(PORT, async () => {
   try {
     await connectMongoDB();
     console.log("✅ MongoDB connected");
-    await initDatabase();
     console.log(`🚀 Server running on port ${PORT}`);
   } catch (err) {
     console.error("❌ Startup error:", err);

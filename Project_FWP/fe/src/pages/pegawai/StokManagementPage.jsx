@@ -53,7 +53,11 @@ export const StokManagementPage = () => {
   const getstok = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${API_BASE}/api/bahan_baku/`);
+      const response = await axios.get(`${API_BASE}/api/bahan_baku/`,
+        {
+          headers: { "x-auth-token": userToken },
+        }
+      );
       setBahanBaku(response.data);
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -78,7 +82,10 @@ export const StokManagementPage = () => {
       };
       const response = await axios.post(
         `${API_BASE}/api/bahan_baku/new`,
-        bahanBakuBaru
+        bahanBakuBaru,
+        {
+          headers: { "x-auth-token": userToken },
+        }
       );
       setBahanBaku((s) => [...s, response.data]);
       reset();
@@ -104,7 +111,10 @@ export const StokManagementPage = () => {
       };
       await axios.put(
         `${API_BASE}/api/bahan_baku/${data.bahan_baku_id}`,
-        updatedBahan
+        updatedBahan,
+        {
+          headers: { "x-auth-token": userToken },
+        }
       );
       setBahanBaku((s) =>
         s.map((b) =>
@@ -125,7 +135,10 @@ export const StokManagementPage = () => {
   const deleteStok = async (id) => {
     try {
       setLoading(true);
-      await axios.delete(`${API_BASE}/api/bahan_baku/${id}`);
+      await axios.delete(`${API_BASE}/api/bahan_baku/${id}`,
+        {
+          headers: { "x-auth-token": userToken },
+        });
       setBahanBaku((s) => s.filter((b) => b.bahan_baku_id !== id));
       reset();
       setMode("tambah");
@@ -176,7 +189,10 @@ export const StokManagementPage = () => {
 
       await axios.post(
         `${API_BASE}/api/bahan_baku/newPembelian`,
-        pembelianData
+        pembelianData,
+        {
+          headers: { "x-auth-token": userToken },
+        }
       );
 
       const updatedBahan = {
@@ -189,7 +205,10 @@ export const StokManagementPage = () => {
 
       await axios.put(
         `${API_BASE}/api/bahan_baku/${data.bahan_baku_id}`,
-        updatedBahan
+        updatedBahan,
+        {
+          headers: { "x-auth-token": userToken },
+        }
       );
 
       setBahanBaku((s) =>

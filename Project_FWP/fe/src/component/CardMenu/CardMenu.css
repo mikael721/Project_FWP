@@ -22,6 +22,10 @@
 
 .infoMenu .infoNamaMenu {
   font-size: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-weight: 500;
 }
 
 .infoMenu .addToCartMenu {
@@ -32,7 +36,6 @@
   border-radius: 25px;
   width: 80%;
   font-size: 15px;
-  margin-top: 10px;
 }
 .addToCartMenu:hover {
   cursor: pointer;
